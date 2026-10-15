@@ -38,10 +38,9 @@ jobs:
           fi
 
       - name: Build
-        run: npm run build
-
-      - name: Copy 404.html for SPA support
         run: |
+          npm run build
+          touch dist/.nojekyll
           cp dist/index.html dist/404.html || true
 
       - name: Setup Pages
