@@ -1,0 +1,6 @@
+{
+  "name": "Vila das Ovelhas - Traição na Fé",
+  "description": "Jogo de dedução social multiplayer online e local com Soldados, Pastor, Evangelista, Apóstolo, Profeta, Mestre e Ovelhas, com chat em tempo real e manual com código Python.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lobby Multiplayer - Infiltrados na Fé (Socket.IO)</title>
+  <!-- Socket.IO CDN -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    body {
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+    .card {
+      background: #ffffff;
+      border: 3px solid #000000;
+      border-radius: 28px;
+      width: 100%;
+      max-width: 400px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      text-align: center;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 4px;
+    }
+    p.subtitle {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 20px;
+      font-family: monospace;
+    }
+    .form-group {
+      margin-bottom: 14px;
+      text-align: left;
+    }
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-family: monospace;
+    }
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 2px solid #000;
+      border-radius: 12px;
+      font-size: 14px;
+      outline: none;
+      font-family: monospace;
+    }
+    input:focus {
+      border-color: #333;
+      background: #fafafa;
+    }
+    button {
+      width: 100%;
+      padding: 13px;
+      border: 2px solid #000;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: all 0.15s ease;
+    }
+    button.btn-primary {
+      background: #000;
+      color: #fff;
+    }
+    button.btn-primary:hover {
+      background: #222;
+    }
+    button.btn-secondary {
+      background: #fff;
+      color: #000;
+    }
+    button.btn-secondary:hover {
+      background: #f0f0f0;
+    }
+    .badge-code {
+      display: inline-block;
+      background: #000;
+      color: #fff;
+      font-size: 24px;
+      font-family: monospace;
+      font-weight: 900;
+      letter-spacing: 4px;
+      padding: 10px 20px;
+      border-radius: 16px;
+      margin: 12px 0;
+    }
+    .players-list {
+      border: 2px solid #000;
+      border-radius: 16px;
+      background: #fafafa;
+      padding: 8px;
+      max-height: 180px;
+      overflow-y: auto;
+      margin: 14px 0;
+      text-align: left;
+    }
+    .player-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 12px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-family: monospace;
+    }
+    .player-item:last-child {
+      margin-bottom: 0;
+    }
+    .tag-host {
+      background: #000;
+      color: #fff;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+    .error-msg {
+      color: #c00;
+      font-size: 11px;
+      font-family: monospace;
+      margin-top: 6px;
+      display: none;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========================================== -->
+  <!-- 1. TELA INICIAL (MENU DE SALAS) -->
+  <!-- ========================================== -->
+  <div id="screen-home" class="card">
+    <h1>Infiltrados na Fé</h1>
+    <p class="subtitle">Lobby Multiplayer Online</p>
+
+    <div class="form-group">
+      <label for="input-name">Seu Nome:</label>
+      <input type="text" id="input-name" placeholder="Ex: Rafael" maxlength="15" value="Rafael">
+    </div>
+
+    <button id="btn-create" class="btn-primary">Criar Nova Partida</button>
+
+    <div style="margin: 16px 0 10px; font-size: 11px; font-family: monospace; color: #888;">— OU ENTRE EM UMA SALA —</div>
+
+    <div class="form-group">
+      <input type="text" id="input-room-code" placeholder="CÓDIGO (EX: X7B2K)" maxlength="5" style="text-transform: uppercase; text-align: center;">
+    </div>
+
+    <button id="btn-join" class="btn-secondary">Entrar com Código</button>
+
+    <p id="home-error" class="error-msg"></p>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- 2. TELA DE LOBBY DA SALA -->
+  <!-- ========================================== -->
+  <div id="screen-lobby" class="card hidden">
+    <h1>Sala de Espera</h1>
+    <p class="subtitle">Compartilhe o código com os amigos</p>
+
+    <div class="badge-code" id="lobby-code-display">-----</div>
+
+    <div class="form-group">
+      <label>Membros Conectados (<span id="player-count">0</span>):</label>
+      <div id="lobby-players" class="players-list">
+        <!-- Itens inseridos via JavaScript -->
+      </div>
+    </div>
+
+    <!-- Botão visível/ativo somente para o Host -->
+    <button id="btn-start" class="btn-primary hidden">Iniciar Partida</button>
+    <div id="waiting-msg" style="font-size: 11px; font-family: monospace; color: #666; margin-top: 10px;">
+      Aguardando o anfitrião iniciar a partida...
+    </div>
+
+    <button id="btn-leave" class="btn-secondary" style="margin-top: 12px;">Sair da Sala</button>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- 3. TELA DO JOGO (CARREGADA APÓS O START) -->
+  <!-- ========================================== -->
+  <div id="screen-game" class="card hidden">
+    <h1>Partida Iniciada!</h1>
+    <p class="subtitle">A 1ª Noite caiu sobre a congregação</p>
+    <div style="padding: 20px; font-family: monospace; font-size: 13px; line-height: 1.6;">
+      🎮 <strong>O jogo está rodando em tempo real!</strong><br>
+      A fase secreta dos Soldados e Ovelhas foi carregada via Socket.IO com sucesso.
+    </div>
+    <button id="btn-back-lobby" class="btn-secondary">Voltar ao Menu</button>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- SCRIPT CLIENT-SIDE (SOCKET.IO) -->
+  <!-- ========================================== -->
+  <script>
+    // Conecta ao servidor Socket.IO (mesmo host/porta)
+    const socket = io();
+
+    // Estado local do jogador
+    let currentRoomCode = null;
+    let isCurrentHost = false;
+
+    // Elementos DOM
+    const screenHome = document.getElementById('screen-home');
+    const screenLobby = document.getElementById('screen-lobby');
+    const screenGame = document.getElementById('screen-game');
+
+    const inputName = document.getElementById('input-name');
+    const inputRoomCode = document.getElementById('input-room-code');
+    const homeError = document.getElementById('home-error');
+
+    const lobbyCodeDisplay = document.getElementById('lobby-code-display');
+    const lobbyPlayers = document.getElementById('lobby-players');
+    const playerCount = document.getElementById('player-count');
+    const btnStart = document.getElementById('btn-start');
+    const waitingMsg = document.getElementById('waiting-msg');
+
+    // Funções utilitárias de troca de tela
+    function showScreen(screen) {
+      screenHome.classList.add('hidden');
+      screenLobby.classList.add('hidden');
+      screenGame.classList.add('hidden');
+      screen.classList.remove('hidden');
+      homeError.style.display = 'none';
+    }
+
+    function showError(msg) {
+      homeError.textContent = msg;
+      homeError.style.display = 'block';
+    }
+
+    function updateLobbyUI(room) {
+      currentRoomCode = room.code;
+      lobbyCodeDisplay.textContent = room.code;
+      playerCount.textContent = room.players.length;
+
+      // Verifica se o usuário atual é o Host
+      isCurrentHost = (room.hostId === socket.id);
+
+      if (isCurrentHost) {
+        btnStart.classList.remove('hidden');
+        waitingMsg.classList.add('hidden');
+      } else {
+        btnStart.classList.add('hidden');
+        waitingMsg.classList.remove('hidden');
+      }
+
+      // Renderiza lista de jogadores
+      lobbyPlayers.innerHTML = '';
+      room.players.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'player-item';
+        item.innerHTML = `
+          <span>${p.name} ${p.socketId === socket.id ? '<strong>(Você)</strong>' : ''}</span>
+          ${p.isHost ? '<span class="tag-host">HOST</span>' : ''}
+        `;
+        lobbyPlayers.appendChild(item);
+      });
+    }
+
+    // ----------------------------------------------------
+    // CLIQUES DOS BOTÕES (DISPARO DE EVENTOS)
+    // ----------------------------------------------------
+
+    // 1. Criar Sala
+    document.getElementById('btn-create').addEventListener('click', () => {
+      const name = inputName.value.trim() || 'Anfitrião';
+      socket.emit('create-room', { playerName: name }, (res) => {
+        if (res.success) {
+          updateLobbyUI(res.room);
+          showScreen(screenLobby);
+        } else {
+          showError(res.message || 'Erro ao criar sala.');
+        }
+      });
+    });
+
+    // 2. Entrar em Sala
+    document.getElementById('btn-join').addEventListener('click', () => {
+      const code = inputRoomCode.value.trim().toUpperCase();
+      const name = inputName.value.trim() || 'Irmão';
+
+      if (code.length !== 5) {
+        showError('Digite o código de 5 caracteres.');
+        return;
+      }
+
+      socket.emit('join-room', { roomCode: code, playerName: name }, (res) => {
+        if (res.success) {
+          updateLobbyUI(res.room);
+          showScreen(screenLobby);
+        } else {
+          showError(res.message || 'Erro ao entrar na sala.');
+        }
+      });
+    });
+
+    // 3. Iniciar Jogo (Host)
+    btnStart.addEventListener('click', () => {
+      if (!isCurrentHost) return;
+      socket.emit('start-game', { roomCode: currentRoomCode }, (res) => {
+        if (!res.success) {
+          alert(res.message);
+        }
+      });
+    });
+
+    // 4. Sair da Sala
+    document.getElementById('btn-leave').addEventListener('click', () => {
+      socket.emit('leave-room');
+      showScreen(screenHome);
+    });
+
+    document.getElementById('btn-back-lobby').addEventListener('click', () => {
+      showScreen(screenHome);
+    });
+
+    // ----------------------------------------------------
+    // ESCUTA DE EVENTOS DO SERVIDOR (SOCKET.IO CLIENT)
+    // ----------------------------------------------------
+
+    // Novo jogador entrou na sala
+    socket.on('player-joined', (data) => {
+      playerCount.textContent = data.players.length;
+      lobbyPlayers.innerHTML = '';
+      data.players.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'player-item';
+        item.innerHTML = `
+          <span>${p.name} ${p.socketId === socket.id ? '<strong>(Você)</strong>' : ''}</span>
+          ${p.isHost ? '<span class="tag-host">HOST</span>' : ''}
+        `;
+        lobbyPlayers.appendChild(item);
+      });
+    });
+
+    // Jogador saiu da sala (ou host transferido)
+    socket.on('player-left', (data) => {
+      isCurrentHost = (data.newHostId === socket.id);
+      if (isCurrentHost) {
+        btnStart.classList.remove('hidden');
+        waitingMsg.classList.add('hidden');
+      }
+      playerCount.textContent = data.players.length;
+      lobbyPlayers.innerHTML = '';
+      data.players.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'player-item';
+        item.innerHTML = `
+          <span>${p.name} ${p.socketId === socket.id ? '<strong>(Você)</strong>' : ''}</span>
+          ${p.isHost ? '<span class="tag-host">HOST</span>' : ''}
+        `;
+        lobbyPlayers.appendChild(item);
+      });
+    });
+
+    // Host deu start no jogo!
+    socket.on('game-started', (data) => {
+      showScreen(screenGame);
+    });
+
+    // Erros
+    socket.on('join-error', (err) => {
+      showError(err.message);
+    });
+
+    socket.on('error', (err) => {
+      alert(err.message);
+    });
+  </script>
+</body>
+</html>
