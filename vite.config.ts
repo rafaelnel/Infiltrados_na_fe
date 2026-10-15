@@ -5,12 +5,19 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
-    base: './',
+    // base: './' permite que o build funcione de forma relativa tanto na raiz (rafaelnel.github.io)
+    // quanto em subpastas de repositório (rafaelnel.github.io/nome-do-repo/)
+    base: process.env.VITE_BASE_PATH || './',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve('.'),
       },
+    },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      sourcemap: false,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

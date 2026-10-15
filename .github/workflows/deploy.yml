@@ -2,7 +2,7 @@ name: Deploy Vite to GitHub Pages
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'master']
   workflow_dispatch:
 
 permissions:
@@ -28,13 +28,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install --legacy-peer-deps
+          else
+            npm install --legacy-peer-deps
+          fi
 
       - name: Build
         run: npm run build
+
+      - name: Copy 404.html for SPA support
+        run: |
+          cp dist/index.html dist/404.html || true
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
