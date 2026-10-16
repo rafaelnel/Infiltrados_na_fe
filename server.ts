@@ -4,6 +4,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1148,11 +1149,53 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Integração com Vite
+  // Integração com Vite e Arquivos Estáticos em Produção
   if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, 'dist')));
+    const distPath = path.join(__dirname, 'dist');
+    const indexPath = path.join(distPath, 'index.html');
+
+    if (fs.existsSync(distPath)) {
+      app.use(express.static(distPath));
+    }
+
     app.get('*', (_req: Request, res: Response) => {
-      res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath, (err) => {
+          if (err && !res.headersSent) {
+            res.status(500).send('Erro ao carregar aplicação estática.');
+          }
+        });
+      } else {
+        // Se dist/index.html não foi gerado no build do backend (ex: Render como backend exclusivo)
+        res.status(200).send(`
+          <!DOCTYPE html>
+          <html lang="pt-BR">
+            <head>
+              <meta charset="UTF-8" />
+              <title>Infiltrados na Fé - Servidor Backend Online</title>
+              <style>
+                body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+                .card { background: #1e293b; border: 2px solid #eab308; border-radius: 16px; padding: 32px; max-width: 520px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+                h1 { color: #facc15; font-size: 24px; margin-top: 0; }
+                p { line-height: 1.6; color: #cbd5e1; font-size: 14px; }
+                .badge { display: inline-block; background: #059669; color: white; padding: 6px 14px; border-radius: 9999px; font-weight: bold; font-size: 12px; margin-bottom: 16px; }
+                .code { background: #0f172a; padding: 10px 14px; border-radius: 8px; font-family: monospace; font-size: 13px; color: #38bdf8; word-break: break-all; }
+              </style>
+            </head>
+            <body>
+              <div class="card">
+                <span class="badge">● SERVIDOR ONLINE</span>
+                <h1>Infiltrados na Fé - Engine Backend</h1>
+                <p>O servidor WebSocket (Socket.IO) e a API REST estão rodando normalmente.</p>
+                <div class="code">Healthcheck: /api/health (OK)</div>
+                <p style="margin-top: 16px; font-size: 12px; color: #94a3b8;">
+                  Se você estiver usando o jogo no GitHub Pages, copie esta URL e insira no botão <strong>Configurar Servidor</strong> no jogo.
+                </p>
+              </div>
+            </body>
+          </html>
+        `);
+      }
     });
   } else {
     const vite = await createViteServer({

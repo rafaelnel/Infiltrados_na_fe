@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Fundo com cantos arredondados estilo selo -->
+  <rect width="64" height="64" rx="16" fill="#0f172a" />
+  <rect x="2" y="2" width="60" height="60" rx="14" stroke="#eab308" stroke-width="2.5" opacity="0.8" />
+  <circle cx="32" cy="32" r="27" stroke="#ca8a04" stroke-width="1" stroke-dasharray="2 3" opacity="0.6" />
+
+  <!-- Brilho Divino de Fundo -->
+  <circle cx="32" cy="24" r="14" fill="#fbbf24" opacity="0.15" />
+
+  <!-- Cruz Dourada Central -->
+  <path d="M29 10H35V20H45V26H35V48H29V26H19V20H29V10Z" fill="url(#goldGradient)" filter="drop-shadow(0px 2px 4px rgba(0,0,0,0.5))" />
+  
+  <!-- Detalhe da Coroa / Resplendor Superior -->
+  <path d="M32 6L34 9L30 9Z" fill="#fef08a" />
+  <circle cx="32" cy="7" r="1.5" fill="#fde047" />
+
+  <!-- Elemento de Infiltração / Olho de Dedução Secreto na base -->
+  <path d="M22 51C26 47 38 47 42 51C38 55 26 55 22 51Z" fill="#1e293b" stroke="#eab308" stroke-width="1.5" />
+  <circle cx="32" cy="51" r="2.5" fill="#eab308" />
+  <circle cx="32" cy="51" r="1" fill="#0f172a" />
+
+  <!-- Gradientes -->
+  <defs>
+    <linearGradient id="goldGradient" x1="19" y1="10" x2="45" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+  </defs>
+</svg>
