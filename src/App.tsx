@@ -17,10 +17,11 @@ import { SystemDocumentationModal } from './components/SystemDocumentationModal'
 import { LocalPlayersSetupModal } from './components/LocalPlayersSetupModal';
 import { GameSettingsModal } from './components/GameSettingsModal';
 import { BallotBoxReveal } from './components/BallotBoxReveal';
-import { ServerConfigModal } from './components/ServerConfigModal';
 import { FourPointStar, SheepIllustration, RoleIllustration } from './components/RoleIllustrations';
 import { sounds } from './utils/audio';
 import { Player, Role, Team, Phase, ChatMessage, GameConfig, RoomState, ModifiersConfig } from './types/game';
+
+const DEFAULT_SERVER_URL = 'https://infiltrados-na-fe.onrender.com';
 import {
   LocalGameState,
   createInitialLocalGame,
@@ -83,24 +84,30 @@ export default function App() {
   const [modalCode, setModalCode] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
 
-  // Configuração do Servidor Backend (permite conectar GitHub Pages a servidores como Render, Railway, etc.)
-  const [serverUrl, setServerUrl] = useState<string>(() => {
-    return localStorage.getItem('multiplayer_server_url') || (import.meta.env.VITE_SERVER_URL as string) || '';
-  });
-  const [isServerConfigOpen, setIsServerConfigOpen] = useState(false);
-
-  const handleSaveServerUrl = (newUrl: string) => {
-    if (newUrl) {
-      localStorage.setItem('multiplayer_server_url', newUrl);
-    } else {
-      localStorage.removeItem('multiplayer_server_url');
+  // URL do Servidor Backend salva permanentemente (https://infiltrados-na-fe.onrender.com)
+  const [serverUrl] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('multiplayer_server_url');
+      if (saved && saved.trim() && saved.startsWith('http')) {
+        return saved.trim();
+      }
+      localStorage.setItem('multiplayer_server_url', DEFAULT_SERVER_URL);
+    } catch {
+      // Ignora restrição de localStorage
     }
-    setServerUrl(newUrl);
-  };
+    return (import.meta.env.VITE_SERVER_URL as string) || DEFAULT_SERVER_URL;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('multiplayer_server_url', DEFAULT_SERVER_URL);
+    } catch {
+      // Ignora restrição de localStorage
+    }
+  }, []);
 
   const getApiUrl = (endpoint: string): string => {
-    const base = serverUrl.trim().replace(/\/+$/, '');
-    if (!base) return endpoint;
+    const base = (serverUrl || DEFAULT_SERVER_URL).trim().replace(/\/+$/, '');
     return `${base}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
   };
 
@@ -110,24 +117,16 @@ export default function App() {
     try {
       res = await fetch(url, options);
     } catch {
-      const isGitHub = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
-      if (isGitHub && !serverUrl) {
-        throw new Error(
-          'O GitHub Pages hospeda apenas páginas estáticas. Para jogar Online com salas, informe a URL do servidor backend (ex: Render/Railway) no botão "Configurar Servidor" ou jogue no modo "Passar o Celular" ou "Solo vs Bots".'
-        );
-      }
-      throw new Error('Falha na conexão com o servidor. Verifique a URL do backend ou sua conexão com a internet.');
+      throw new Error(
+        'Falha na conexão com o servidor online. Se o servidor no Render estiver acordando (cold start), aguarde cerca de 30 a 50 segundos e tente novamente.'
+      );
     }
 
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      const isGitHub = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
-      if (isGitHub && !serverUrl) {
-        throw new Error(
-          'Servidor Online não configurado no GitHub Pages. Configure a URL do servidor backend para criar salas online, ou divirta-se agora mesmo com "Passar o Celular" e "Solo vs Bots"!'
-        );
-      }
-      throw new Error(`O servidor retornou uma resposta inválida (HTTP ${res.status}). O serviço backend pode estar offline.`);
+      throw new Error(
+        `O servidor retornou uma resposta inesperada (HTTP ${res.status}). O serviço no Render pode estar iniciando ou reiniciando.`
+      );
     }
 
     const data = await res.json();
@@ -318,8 +317,10 @@ export default function App() {
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 20000,
+        transports: ['polling', 'websocket'],
       };
-      const socket = serverUrl ? io(serverUrl, socketOptions) : io(socketOptions);
+      const targetUrl = serverUrl || DEFAULT_SERVER_URL;
+      const socket = io(targetUrl, socketOptions);
       socketRef.current = socket;
 
       const syncCurrentRoom = async () => {
@@ -912,16 +913,10 @@ export default function App() {
                   <span className="text-[10px] font-mono font-bold uppercase text-neutral-500">
                     Multiplayer Online (Salas)
                   </span>
-                  <button
-                    onClick={() => {
-                      setIsServerConfigOpen(true);
-                      sounds.playClick();
-                    }}
-                    className="text-[10px] font-mono font-bold text-black hover:text-neutral-600 flex items-center gap-1 underline"
-                  >
-                    <Server size={11} />
-                    <span>{serverUrl ? 'Servidor Conectado' : 'Configurar Servidor'}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-300">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-bold">Servidor Conectado</span>
+                  </div>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -2154,15 +2149,11 @@ export default function App() {
                 <div className="flex flex-col gap-1.5 pt-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsCreateRoomModalOpen(false);
-                      setIsServerConfigOpen(true);
-                      sounds.playClick();
-                    }}
+                    onClick={() => handleCreateRoom(modalName)}
                     className="w-full py-1.5 bg-red-900 text-white rounded-lg text-[10px] uppercase font-bold tracking-wider hover:bg-red-800 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    <Server size={12} />
-                    <span>Configurar URL do Backend</span>
+                    <RefreshCw size={12} />
+                    <span>Tentar Conectar Novamente</span>
                   </button>
                   <button
                     type="button"
@@ -2286,15 +2277,11 @@ export default function App() {
                 <div className="flex flex-col gap-1.5 pt-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsJoinRoomModalOpen(false);
-                      setIsServerConfigOpen(true);
-                      sounds.playClick();
-                    }}
+                    onClick={() => handleJoinRoom(modalCode, modalName)}
                     className="w-full py-1.5 bg-red-900 text-white rounded-lg text-[10px] uppercase font-bold tracking-wider hover:bg-red-800 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    <Server size={12} />
-                    <span>Configurar URL do Backend</span>
+                    <RefreshCw size={12} />
+                    <span>Tentar Conectar Novamente</span>
                   </button>
                   <button
                     type="button"
@@ -2330,14 +2317,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* Modal de Configuração do Servidor Backend */}
-      <ServerConfigModal
-        isOpen={isServerConfigOpen}
-        onClose={() => setIsServerConfigOpen(false)}
-        currentServerUrl={serverUrl}
-        onSaveServerUrl={handleSaveServerUrl}
-      />
     </>
   );
 }
