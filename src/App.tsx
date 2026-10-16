@@ -17,6 +17,7 @@ import { SystemDocumentationModal } from './components/SystemDocumentationModal'
 import { LocalPlayersSetupModal } from './components/LocalPlayersSetupModal';
 import { GameSettingsModal } from './components/GameSettingsModal';
 import { BallotBoxReveal } from './components/BallotBoxReveal';
+import { ServerConfigModal } from './components/ServerConfigModal';
 import { FourPointStar, SheepIllustration, RoleIllustration } from './components/RoleIllustrations';
 import { sounds } from './utils/audio';
 import { Player, Role, Team, Phase, ChatMessage, GameConfig, RoomState, ModifiersConfig } from './types/game';
@@ -54,6 +55,7 @@ import {
   Wifi,
   WifiOff,
   RefreshCw,
+  Server,
 } from 'lucide-react';
 
 export default function App() {
@@ -80,6 +82,60 @@ export default function App() {
   const [modalName, setModalName] = useState('');
   const [modalCode, setModalCode] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // Configuração do Servidor Backend (permite conectar GitHub Pages a servidores como Render, Railway, etc.)
+  const [serverUrl, setServerUrl] = useState<string>(() => {
+    return localStorage.getItem('multiplayer_server_url') || (import.meta.env.VITE_SERVER_URL as string) || '';
+  });
+  const [isServerConfigOpen, setIsServerConfigOpen] = useState(false);
+
+  const handleSaveServerUrl = (newUrl: string) => {
+    if (newUrl) {
+      localStorage.setItem('multiplayer_server_url', newUrl);
+    } else {
+      localStorage.removeItem('multiplayer_server_url');
+    }
+    setServerUrl(newUrl);
+  };
+
+  const getApiUrl = (endpoint: string): string => {
+    const base = serverUrl.trim().replace(/\/+$/, '');
+    if (!base) return endpoint;
+    return `${base}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  };
+
+  const apiFetch = async (endpoint: string, options?: RequestInit) => {
+    const url = getApiUrl(endpoint);
+    let res: Response;
+    try {
+      res = await fetch(url, options);
+    } catch {
+      const isGitHub = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+      if (isGitHub && !serverUrl) {
+        throw new Error(
+          'O GitHub Pages hospeda apenas páginas estáticas. Para jogar Online com salas, informe a URL do servidor backend (ex: Render/Railway) no botão "Configurar Servidor" ou jogue no modo "Passar o Celular" ou "Solo vs Bots".'
+        );
+      }
+      throw new Error('Falha na conexão com o servidor. Verifique a URL do backend ou sua conexão com a internet.');
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const isGitHub = typeof window !== 'undefined' && window.location.hostname.includes('github.io');
+      if (isGitHub && !serverUrl) {
+        throw new Error(
+          'Servidor Online não configurado no GitHub Pages. Configure a URL do servidor backend para criar salas online, ou divirta-se agora mesmo com "Passar o Celular" e "Solo vs Bots"!'
+        );
+      }
+      throw new Error(`O servidor retornou uma resposta inválida (HTTP ${res.status}). O serviço backend pode estar offline.`);
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || `Erro do servidor (${res.status})`);
+    }
+    return data;
+  };
 
   // Sockets & SSE
   const socketRef = useRef<Socket | null>(null);
@@ -256,13 +312,14 @@ export default function App() {
   // -------------------------------------------------------------
   useEffect(() => {
     try {
-      const socket = io({
+      const socketOptions = {
         reconnection: true,
         reconnectionAttempts: Infinity,
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 20000,
-      });
+      };
+      const socket = serverUrl ? io(serverUrl, socketOptions) : io(socketOptions);
       socketRef.current = socket;
 
       const syncCurrentRoom = async () => {
@@ -278,11 +335,8 @@ export default function App() {
               }
             });
             // Re-fetch via REST para garantir paridade total dos dados
-            const res = await fetch(`/api/rooms/${code}?playerId=${pId}`);
-            if (res.ok) {
-              const full = await res.json();
-              setRoomData(full);
-            }
+            const full = await apiFetch(`/api/rooms/${code}?playerId=${pId}`);
+            setRoomData(full);
           } catch (err) {
             console.error('Erro na sincronização de reconexão:', err);
           } finally {
@@ -371,7 +425,7 @@ export default function App() {
     } catch (e) {
       console.warn('Socket.IO init warning', e);
     }
-  }, []);
+  }, [serverUrl]);
 
   // -------------------------------------------------------------
   // ONLINE MULTIPLAYER ENGINE
@@ -412,13 +466,11 @@ export default function App() {
   };
 
   const fallbackRestCreate = async (host: string) => {
-    const res = await fetch('/api/rooms', {
+    const data = await apiFetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ hostName: host }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao criar sala');
 
     setMyPlayerId(data.playerId);
     setRoomData(data.room);
@@ -467,13 +519,11 @@ export default function App() {
           }
         });
       } else {
-        const res = await fetch(`/api/rooms/${cleanCode}/join`, {
+        const data = await apiFetch(`/api/rooms/${cleanCode}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerName: name }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Erro ao entrar na sala');
 
         setMyPlayerId(data.playerId);
         setRoomData(data.room);
@@ -493,7 +543,8 @@ export default function App() {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
-    const es = new EventSource(`/api/rooms/${code}/events?playerId=${pId}`);
+    const sseUrl = getApiUrl(`/api/rooms/${code}/events?playerId=${pId}`);
+    const es = new EventSource(sseUrl);
     es.onmessage = () => {
       fetchRoomDetail(code, pId);
     };
@@ -503,11 +554,8 @@ export default function App() {
 
   const fetchRoomDetail = async (code: string, pId: string) => {
     try {
-      const res = await fetch(`/api/rooms/${code}?playerId=${pId}`);
-      if (res.ok) {
-        const full = await res.json();
-        setRoomData(full);
-      }
+      const full = await apiFetch(`/api/rooms/${code}?playerId=${pId}`);
+      setRoomData(full);
     } catch (e) {
       console.error(e);
     }
@@ -860,9 +908,21 @@ export default function App() {
 
               {/* Online Multiplayer */}
               <div className="border-2 border-black/20 rounded-2xl p-3 bg-neutral-50 space-y-2">
-                <span className="text-[10px] font-mono font-bold uppercase text-neutral-500 block text-center">
-                  Multiplayer Online (Salas com Código de 5 Letras)
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-mono font-bold uppercase text-neutral-500">
+                    Multiplayer Online (Salas)
+                  </span>
+                  <button
+                    onClick={() => {
+                      setIsServerConfigOpen(true);
+                      sounds.playClick();
+                    }}
+                    className="text-[10px] font-mono font-bold text-black hover:text-neutral-600 flex items-center gap-1 underline"
+                  >
+                    <Server size={11} />
+                    <span>{serverUrl ? 'Servidor Conectado' : 'Configurar Servidor'}</span>
+                  </button>
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={() => {
@@ -2089,8 +2149,33 @@ export default function App() {
             </div>
 
             {modalError && (
-              <div className="p-2 border-2 border-red-900 bg-red-50 text-red-900 text-[11px] rounded-xl font-bold">
-                {modalError}
+              <div className="p-3 border-2 border-red-900 bg-red-50 text-red-900 text-[11px] rounded-xl font-bold space-y-2">
+                <p className="leading-tight">{modalError}</p>
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateRoomModalOpen(false);
+                      setIsServerConfigOpen(true);
+                      sounds.playClick();
+                    }}
+                    className="w-full py-1.5 bg-red-900 text-white rounded-lg text-[10px] uppercase font-bold tracking-wider hover:bg-red-800 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Server size={12} />
+                    <span>Configurar URL do Backend</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateRoomModalOpen(false);
+                      setIsLocalSetupOpen(true);
+                      sounds.playClick();
+                    }}
+                    className="w-full py-1.5 border border-red-900/40 text-red-900 bg-white rounded-lg text-[10px] uppercase font-bold tracking-wider hover:bg-red-100 transition-colors"
+                  >
+                    Ou Jogar Modo Passar Celular (Sem Servidor)
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2196,8 +2281,33 @@ export default function App() {
             </div>
 
             {modalError && (
-              <div className="p-2 border-2 border-red-900 bg-red-50 text-red-900 text-[11px] rounded-xl font-bold">
-                {modalError}
+              <div className="p-3 border-2 border-red-900 bg-red-50 text-red-900 text-[11px] rounded-xl font-bold space-y-2">
+                <p className="leading-tight">{modalError}</p>
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsJoinRoomModalOpen(false);
+                      setIsServerConfigOpen(true);
+                      sounds.playClick();
+                    }}
+                    className="w-full py-1.5 bg-red-900 text-white rounded-lg text-[10px] uppercase font-bold tracking-wider hover:bg-red-800 transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Server size={12} />
+                    <span>Configurar URL do Backend</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsJoinRoomModalOpen(false);
+                      handleStartSolo(modalName || playerName || 'Você');
+                      sounds.playClick();
+                    }}
+                    className="w-full py-1.5 border border-red-900/40 text-red-900 bg-white rounded-lg text-[10px] uppercase font-bold tracking-wider hover:bg-red-100 transition-colors"
+                  >
+                    Jogar Solo vs Bots (Sem Servidor)
+                  </button>
+                </div>
               </div>
             )}
 
@@ -2220,6 +2330,14 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Modal de Configuração do Servidor Backend */}
+      <ServerConfigModal
+        isOpen={isServerConfigOpen}
+        onClose={() => setIsServerConfigOpen(false)}
+        currentServerUrl={serverUrl}
+        onSaveServerUrl={handleSaveServerUrl}
+      />
     </>
   );
 }

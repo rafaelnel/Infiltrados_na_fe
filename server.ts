@@ -187,7 +187,7 @@ const BOT_NAMES = ['Gabriel', 'Mateus', 'Rebeca', 'Davi', 'Sara', 'Lucas', 'Este
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT) || 3000;
 
   // Criação do HTTP Server para encapsular Express e Socket.IO
   const httpServer = http.createServer(app);
@@ -196,7 +196,23 @@ async function startServer() {
   });
   globalIo = io;
 
+  // CORS Middleware para rotas HTTP (permite que frontend no GitHub Pages acesse o backend)
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   app.use(express.json());
+
+  // Endpoint de verificação de status do servidor
+  app.get('/api/health', (_req, res) => {
+    res.json({ status: 'ok', server: 'Infiltrado na Fé Engine', timestamp: Date.now() });
+  });
 
   // ==========================================================================
   // EVENTOS DO SOCKET.IO (GERENCIAMENTO DE SALAS E LOBBY EM TEMPO REAL)
