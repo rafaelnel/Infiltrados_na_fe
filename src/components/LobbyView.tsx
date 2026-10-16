@@ -52,6 +52,27 @@ export const LobbyView: React.FC<Props> = ({
   const [copied, setCopied] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
+  const [isBotBusy, setIsBotBusy] = useState(false);
+
+  const handleAddBotClick = async (count: number) => {
+    if (isBotBusy) return;
+    setIsBotBusy(true);
+    try {
+      await onAddBot(count);
+    } finally {
+      setIsBotBusy(false);
+    }
+  };
+
+  const handleRemoveBotClick = async () => {
+    if (isBotBusy || !onRemoveBot) return;
+    setIsBotBusy(true);
+    try {
+      await onRemoveBot();
+    } finally {
+      setIsBotBusy(false);
+    }
+  };
 
   // Contadores de papéis selecionados
   const [roleCounts, setRoleCounts] = useState<Record<Role, number>>(() =>
@@ -239,23 +260,24 @@ export const LobbyView: React.FC<Props> = ({
           <div className="space-y-2">
             <div className="flex gap-1.5 flex-wrap">
               <button
-                onClick={() => onAddBot(1)}
-                disabled={players.length >= 16}
+                onClick={() => handleAddBotClick(1)}
+                disabled={isBotBusy || players.length >= 16}
                 className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors"
               >
                 <Bot size={13} /> +1 Bot
               </button>
               <button
-                onClick={() => onAddBot(3)}
-                disabled={players.length >= 14}
+                onClick={() => handleAddBotClick(3)}
+                disabled={isBotBusy || players.length >= 14}
                 className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors"
               >
                 <UserPlus size={13} /> +3 Bots
               </button>
               {players.some(p => p.isBot) && onRemoveBot && (
                 <button
-                  onClick={onRemoveBot}
-                  className="py-2 px-2.5 border-2 border-red-800 text-red-800 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-red-50 transition-colors"
+                  onClick={handleRemoveBotClick}
+                  disabled={isBotBusy}
+                  className="py-2 px-2.5 border-2 border-red-800 text-red-800 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-red-50 disabled:opacity-40 transition-colors"
                   title="Remover último bot adicionado"
                 >
                   <Minus size={13} /> Bot

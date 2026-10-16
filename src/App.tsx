@@ -576,9 +576,6 @@ export default function App() {
         discussionTimeSeconds,
         modifiersConfig,
       };
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('start-game', payload);
-      }
       const data = await apiFetch(`/api/rooms/${roomData.code}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -597,9 +594,6 @@ export default function App() {
   const handleOnlineConfirmRole = async () => {
     if (!roomData) return;
     try {
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('confirm-role', { roomCode: roomData.code, playerId: myPlayerId });
-      }
       const data = await apiFetch(`/api/rooms/${roomData.code}/confirm-role`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -617,9 +611,6 @@ export default function App() {
   const handleOnlineReadyPhase = async () => {
     if (!roomData) return;
     try {
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('ready-phase', { roomCode: roomData.code, playerId: myPlayerId });
-      }
       const data = await apiFetch(`/api/rooms/${roomData.code}/ready-phase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -637,13 +628,6 @@ export default function App() {
   const handleOnlineAddBot = async (count: number) => {
     if (!roomData) return;
     try {
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('add-bot', { roomCode: roomData.code, count }, (res: any) => {
-          if (res?.success && res.room) {
-            setRoomData(res.room);
-          }
-        });
-      }
       const data = await apiFetch(`/api/rooms/${roomData.code}/add-bot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -662,13 +646,6 @@ export default function App() {
   const handleOnlineRemoveBot = async () => {
     if (!roomData) return;
     try {
-      if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('remove-bot', { roomCode: roomData.code }, (res: any) => {
-          if (res?.success && res.room) {
-            setRoomData(res.room);
-          }
-        });
-      }
       const data = await apiFetch(`/api/rooms/${roomData.code}/remove-bot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
