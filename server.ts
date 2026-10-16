@@ -563,6 +563,68 @@ async function startServer() {
       if (callback) callback({ success: true });
     });
 
+    // C5) Adicionar Bots pelo Host (add-bot)
+    socket.on('add-bot', (data: { roomCode: string; count?: number }, callback?: (res: any) => void) => {
+      const code = (data?.roomCode || '').toUpperCase().trim();
+      const count = Number(data?.count) || 1;
+      const room = rooms.get(code);
+      if (!room || room.phase !== 'LOBBY') {
+        if (callback) callback({ success: false, error: 'Não é possível adicionar bots agora.' });
+        return;
+      }
+      if (room.players.length >= 16) {
+        if (callback) callback({ success: false, error: 'A sala já atingiu o limite de 16 participantes.' });
+        return;
+      }
+      const currentNames = new Set(room.players.map(p => p.name));
+      const availableNames = BOT_NAMES.filter(n => !currentNames.has(n));
+      const toAdd = Math.min(count, 16 - room.players.length);
+      for (let i = 0; i < toAdd; i++) {
+        let botName = availableNames[i];
+        if (!botName) {
+          const backupNames = ['Calebe', 'Barnabé', 'Ezequiel', 'Josué', 'Débora', 'Lídia', 'Elias', 'Priscila', 'Filemom', 'Timóteo'];
+          const availableBackup = backupNames.filter(n => !currentNames.has(n));
+          botName = availableBackup[0] || `Irmão ${room.players.length + 1}`;
+        }
+        currentNames.add(botName);
+        const botPlayer: Player = {
+          id: 'bot_' + Math.random().toString(36).substring(2, 9),
+          name: botName,
+          role: 'OVELHA',
+          team: 'OVELHAS',
+          isAlive: true,
+          isHost: false,
+          isBot: true,
+          prayersReceived: 0,
+          converted: false,
+          hasActedTonight: false,
+          voteTargetId: null,
+          nightActionTargetId: null,
+        };
+        room.players.push(botPlayer);
+      }
+      broadcastRoom(room);
+      if (callback) callback({ success: true, room: sanitizeRoomForClients(room) });
+    });
+
+    // C6) Remover Bot pelo Host (remove-bot)
+    socket.on('remove-bot', (data: { roomCode: string }, callback?: (res: any) => void) => {
+      const code = (data?.roomCode || '').toUpperCase().trim();
+      const room = rooms.get(code);
+      if (!room || room.phase !== 'LOBBY') {
+        if (callback) callback({ success: false, error: 'Não é possível remover bots agora.' });
+        return;
+      }
+      const botIndex = room.players.map(p => p.isBot).lastIndexOf(true);
+      if (botIndex === -1) {
+        if (callback) callback({ success: false, error: 'Não há bots para remover.' });
+        return;
+      }
+      room.players.splice(botIndex, 1);
+      broadcastRoom(room);
+      if (callback) callback({ success: true, room: sanitizeRoomForClients(room) });
+    });
+
     // D) Sair da Sala / Desconexão
     const handleLeave = () => {
       for (const [code, room] of rooms.entries()) {
@@ -750,19 +812,29 @@ async function startServer() {
   // Adicionar bots
   app.post('/api/rooms/:code/add-bot', (req: Request, res: Response) => {
     const code = req.params.code.toUpperCase();
-    const { count = 1 } = req.body;
+    const count = Number(req.body?.count) || 1;
     const room = rooms.get(code);
 
     if (!room || room.phase !== 'LOBBY') {
       return res.status(400).json({ error: 'Não é possível adicionar bots agora.' });
     }
 
+    if (room.players.length >= 16) {
+      return res.status(400).json({ error: 'A sala atingiu o limite de 16 participantes.' });
+    }
+
     const currentNames = new Set(room.players.map(p => p.name));
     const availableNames = BOT_NAMES.filter(n => !currentNames.has(n));
 
-    const toAdd = Math.min(count, 16 - room.players.length, availableNames.length);
+    const toAdd = Math.min(count, 16 - room.players.length);
     for (let i = 0; i < toAdd; i++) {
-      const botName = availableNames[i] || `Irmão ${room.players.length + 1}`;
+      let botName = availableNames[i];
+      if (!botName) {
+        const backupNames = ['Calebe', 'Barnabé', 'Ezequiel', 'Josué', 'Débora', 'Lídia', 'Elias', 'Priscila', 'Filemom', 'Timóteo'];
+        const availableBackup = backupNames.filter(n => !currentNames.has(n));
+        botName = availableBackup[0] || `Irmão ${room.players.length + 1}`;
+      }
+      currentNames.add(botName);
       const botPlayer: Player = {
         id: 'bot_' + Math.random().toString(36).substring(2, 9),
         name: botName,
@@ -780,6 +852,25 @@ async function startServer() {
       room.players.push(botPlayer);
     }
 
+    broadcastRoom(room);
+    res.json({ success: true, room: sanitizeRoomForClients(room) });
+  });
+
+  // Remover último bot
+  app.post('/api/rooms/:code/remove-bot', (req: Request, res: Response) => {
+    const code = req.params.code.toUpperCase();
+    const room = rooms.get(code);
+
+    if (!room || room.phase !== 'LOBBY') {
+      return res.status(400).json({ error: 'Não é possível remover bots agora.' });
+    }
+
+    const botIndex = room.players.map(p => p.isBot).lastIndexOf(true);
+    if (botIndex === -1) {
+      return res.status(400).json({ error: 'Não há bots para remover.' });
+    }
+
+    room.players.splice(botIndex, 1);
     broadcastRoom(room);
     res.json({ success: true, room: sanitizeRoomForClients(room) });
   });

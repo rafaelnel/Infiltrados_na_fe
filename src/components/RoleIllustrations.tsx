@@ -72,188 +72,170 @@ export const SheepIllustration: React.FC<IllustrationProps> = ({ className = 'w-
   </svg>
 );
 
-// 🐺⚔️ Soldado (Lobo Infiltrado em Armadura de Combate & Pele de Cordeiro)
+// ⚔️ Soldado (Legionário Romano com Lança Pilum, Escudo Scutum, Elmo com Crista e Sandálias Caligae)
 export const SoldierIllustration: React.FC<IllustrationProps> = ({ className = 'w-48 h-48', size }) => (
   <svg
     className={className}
     width={size}
     height={size}
-    viewBox="0 0 200 240"
+    viewBox="0 0 200 310"
     fill="none"
     stroke="#000000"
     strokeLinecap="round"
     strokeLinejoin="round"
     strokeWidth="2.5"
   >
-    {/* Floor shadow */}
-    <ellipse cx="100" cy="226" rx="65" ry="8" fill="#000000" opacity="0.12" stroke="none" />
-    <line x1="35" y1="226" x2="165" y2="226" strokeWidth="2.5" />
+    {/* Ground Line */}
+    <path d="M 32 284 Q 105 285 178 284" strokeWidth="3" />
 
-    {/* ================================================================= */}
-    {/* 1. WOLF BUSHY TAIL (Curling out behind left leg) */}
-    {/* ================================================================= */}
-    <path
-      d="M68 160 C42 165 24 140 28 115 C34 98 46 95 48 106 C42 115 48 132 66 142 Z"
-      fill="#ffffff"
-      strokeWidth="2.5"
-    />
-    {/* Tail fur spikes / fluff lines */}
-    <path d="M28 115 L35 125 M32 138 L40 144 M42 152 L50 156" strokeWidth="2" />
+    {/* ========================================== */}
+    {/* 1. SPEAR / PILUM (Behind & In Hand) */}
+    {/* ========================================== */}
+    {/* Shaft */}
+    <line x1="33" y1="52" x2="52" y2="284" strokeWidth="2.6" />
+    {/* Spear Point (Diamond) */}
+    <polygon points="33,24 39,44 33,50 27,44" fill="#ffffff" strokeWidth="2.5" />
+    <line x1="33" y1="24" x2="33" y2="50" strokeWidth="1.8" />
+    {/* Spear Weighted Block */}
+    <polygon points="32,96 39,96 41,114 30,114" fill="#ffffff" strokeWidth="2.4" />
 
-    {/* ================================================================= */}
-    {/* 2. LEGS & CLAWED ARMORED GREAVES */}
-    {/* ================================================================= */}
-    {/* Left Leg Greave */}
-    <path d="M74 165 L70 216 L88 216 L86 165 Z" fill="#ffffff" strokeWidth="2.5" />
-    <line x1="72" y1="188" x2="86" y2="188" strokeWidth="2" />
-    <line x1="71" y1="198" x2="87" y2="198" strokeWidth="2" />
-    {/* Left Clawed Foot / Boot */}
-    <path d="M64 226 L92 226 C90 220 86 216 70 216 C66 218 64 222 64 226 Z" fill="#ffffff" strokeWidth="2.5" />
-    <line x1="68" y1="226" x2="66" y2="220" strokeWidth="2" />
-    <line x1="78" y1="226" x2="78" y2="218" strokeWidth="2" />
-    <line x1="88" y1="226" x2="88" y2="220" strokeWidth="2" />
+    {/* ========================================== */}
+    {/* 2. LEGS & ROMAN CALIGAE SANDALS */}
+    {/* ========================================== */}
+    {/* Left Leg */}
+    <path d="M 83 218 L 86 270" strokeWidth="2.4" />
+    <path d="M 98 218 L 98 270" strokeWidth="2.4" />
+    {/* Left Sandal Cross Straps */}
+    <line x1="84" y1="244" x2="98" y2="244" strokeWidth="2" />
+    <line x1="84" y1="244" x2="98" y2="256" strokeWidth="2" />
+    <line x1="98" y1="244" x2="85" y2="256" strokeWidth="2" />
+    <line x1="85" y1="256" x2="98" y2="268" strokeWidth="2" />
+    <line x1="98" y1="256" x2="86" y2="268" strokeWidth="2" />
+    <line x1="86" y1="270" x2="98" y2="270" strokeWidth="2" />
+    {/* Left Foot / Sandal */}
+    <path d="M 70 284 L 102 284 L 102 276 L 86 276" strokeWidth="2.4" />
+    <path d="M 70 284 C 70 274, 84 274, 86 284" fill="#ffffff" strokeWidth="2.4" />
+    <line x1="78" y1="276" x2="81" y2="284" strokeWidth="2" />
 
-    {/* Right Leg Greave */}
-    <path d="M114 165 L112 216 L130 216 L126 165 Z" fill="#ffffff" strokeWidth="2.5" />
-    <line x1="113" y1="188" x2="127" y2="188" strokeWidth="2" />
-    <line x1="112" y1="198" x2="128" y2="198" strokeWidth="2" />
-    {/* Right Clawed Foot / Boot */}
-    <path d="M108 226 L136 226 C134 220 130 216 114 216 C110 218 108 222 108 226 Z" fill="#ffffff" strokeWidth="2.5" />
-    <line x1="112" y1="226" x2="110" y2="220" strokeWidth="2" />
-    <line x1="122" y1="226" x2="122" y2="218" strokeWidth="2" />
-    <line x1="132" y1="226" x2="132" y2="220" strokeWidth="2" />
+    {/* Right Leg */}
+    <path d="M 114 218 L 114 270" strokeWidth="2.4" />
+    <path d="M 129 218 L 126 270" strokeWidth="2.4" />
+    {/* Right Sandal Cross Straps */}
+    <line x1="114" y1="244" x2="128" y2="244" strokeWidth="2" />
+    <line x1="114" y1="244" x2="127" y2="256" strokeWidth="2" />
+    <line x1="128" y1="244" x2="114" y2="256" strokeWidth="2" />
+    <line x1="114" y1="256" x2="126" y2="268" strokeWidth="2" />
+    <line x1="127" y1="256" x2="115" y2="268" strokeWidth="2" />
+    <line x1="115" y1="270" x2="126" y2="270" strokeWidth="2" />
+    {/* Right Foot / Sandal */}
+    <path d="M 112 284 L 144 284 L 144 276 L 126 276" strokeWidth="2.4" />
+    <path d="M 126 284 C 126 274, 142 274, 144 284" fill="#ffffff" strokeWidth="2.4" />
+    <line x1="134" y1="276" x2="137" y2="284" strokeWidth="2" />
 
-    {/* ================================================================= */}
-    {/* 3. ARMORED TUNIC & LEATHER BELT */}
-    {/* ================================================================= */}
-    <polygon points="66,138 60,166 140,166 134,138" fill="#ffffff" strokeWidth="2.5" />
+    {/* ========================================== */}
+    {/* 3. TUNIC SKIRT & BELT PTERUGES */}
+    {/* ========================================== */}
+    {/* Skirt */}
+    <polygon points="70,182 62,218 142,218 136,182" fill="#ffffff" strokeWidth="2.5" />
     {/* Belt */}
-    <rect x="64" y="134" width="72" height="8" rx="2" fill="#000000" />
-    <rect x="94" y="132" width="12" height="12" rx="2" fill="#ffffff" stroke="#000000" strokeWidth="2" />
-    {/* Armor Tassets (segmented flaps) */}
-    <line x1="78" y1="142" x2="74" y2="166" strokeWidth="2" />
-    <line x1="90" y1="142" x2="88" y2="166" strokeWidth="2" />
-    <line x1="110" y1="142" x2="112" y2="166" strokeWidth="2" />
-    <line x1="122" y1="142" x2="126" y2="166" strokeWidth="2" />
+    <rect x="68" y="176" width="70" height="7" fill="#ffffff" strokeWidth="2.4" />
+    
+    {/* Leather Hanging Strips (Pteruges) */}
+    {/* Left Strip */}
+    <polygon points="88,183 83,212 92,212 94,183" fill="#ffffff" strokeWidth="2.2" />
+    {/* Center Strip */}
+    <polygon points="98,183 97,218 107,218 108,183" fill="#ffffff" strokeWidth="2.2" />
+    {/* Right Strip */}
+    <polygon points="112,183 114,212 123,212 118,183" fill="#ffffff" strokeWidth="2.2" />
 
-    {/* ================================================================= */}
-    {/* 4. IRON CHEST ARMOR & SHEEP PELT CAMOUFLAGE */}
-    {/* ================================================================= */}
-    {/* Armored Cuirass Torso */}
-    <path d="M68 90 L64 134 L136 134 L132 90 Z" fill="#ffffff" strokeWidth="2.5" />
-    {/* Chest Muscle / Plate contours */}
-    <path d="M80 102 Q100 114 120 102" strokeWidth="2.2" />
-    <line x1="100" y1="102" x2="100" y2="128" strokeWidth="2" />
-    <path d="M85 124 Q100 130 115 124" strokeWidth="2" />
+    {/* ========================================== */}
+    {/* 4. TORSO ARMOR (Lorica Segmentata) */}
+    {/* ========================================== */}
+    {/* Main Torso Block */}
+    <polygon points="77,114 69,176 137,176 132,114" fill="#ffffff" strokeWidth="2.5" />
+    {/* Segmented Plates Lines */}
+    <rect x="94" y="125" width="20" height="9" fill="#ffffff" strokeWidth="2.3" rx="1" />
+    <line x1="91" y1="145" x2="119" y2="145" strokeWidth="2.5" />
+    <line x1="91" y1="156" x2="119" y2="156" strokeWidth="2.5" />
+    <line x1="91" y1="167" x2="119" y2="167" strokeWidth="2.5" />
 
-    {/* Fluffy Sheepskin Wool Pelt draped on right shoulder (Lobo em Pele de Cordeiro!) */}
-    <path
-      d="M124 82 C134 76 148 84 146 96 C154 100 156 114 148 122 C154 130 144 142 134 136 C128 140 120 134 122 126 Z"
-      fill="#ffffff"
-      strokeWidth="2.2"
-    />
-    <path d="M130 92 C138 90 142 98 136 102" strokeWidth="1.8" />
-    <path d="M134 108 C142 108 144 116 138 120" strokeWidth="1.8" />
+    {/* Shoulder Pauldrons / Guards */}
+    {/* Left Pauldron */}
+    <polygon points="77,114 67,140 85,140 87,114" fill="#ffffff" strokeWidth="2.3" />
+    {/* Right Pauldron */}
+    <polygon points="127,114 125,140 142,140 132,114" fill="#ffffff" strokeWidth="2.3" />
 
-    {/* Spiked Iron Pauldron on left shoulder */}
-    <path d="M68 90 L52 104 L66 122 L76 102 Z" fill="#ffffff" strokeWidth="2.5" />
-    {/* Pauldron Spikes */}
-    <polygon points="52,94 42,88 56,102" fill="#000000" />
-    <polygon points="46,108 36,110 50,118" fill="#000000" />
+    {/* Left Arm (Spear Hand) */}
+    {/* Sleeve */}
+    <polygon points="77,115 62,142 75,140" fill="#ffffff" strokeWidth="2.2" />
+    {/* Arm Lines */}
+    <polyline points="65,142 59,165 38,142" strokeWidth="2.5" />
+    {/* Hand gripping spear */}
+    <path d="M 37 137 C 33 137 33 147 38 147" strokeWidth="2.4" />
 
-    {/* ================================================================= */}
-    {/* 5. ARMS & WEAPONS */}
-    {/* ================================================================= */}
-    {/* Left Arm: Gripping the Infiltrator Spear/Pilum */}
-    <line x1="60" y1="108" x2="44" y2="132" strokeWidth="2.8" />
-    <line x1="44" y1="132" x2="36" y2="114" strokeWidth="2.8" />
-    {/* Clawed Hand on Spear */}
-    <path d="M34 110 C28 112 28 122 36 122" fill="#ffffff" strokeWidth="2.5" />
-    {/* Sharp Claws */}
-    <line x1="32" y1="112" x2="28" y2="110" strokeWidth="2" />
-    <line x1="32" y1="116" x2="27" y2="116" strokeWidth="2" />
-    <line x1="33" y1="120" x2="29" y2="122" strokeWidth="2" />
+    {/* ========================================== */}
+    {/* 5. SCUTUM SHIELD (Left Hand side of image) */}
+    {/* ========================================== */}
+    {/* Curved rectangular shield */}
+    <path d="M 158,124 C 160,118 178,122 178,128 L 176,236 C 176,242 152,246 144,244 L 142,138 C 142,132 154,124 158,124 Z" fill="#ffffff" strokeWidth="2.6" strokeLinejoin="round" />
+    {/* Shield Umbo / Handle Side Bump */}
+    <path d="M 175,158 C 187,162 188,182 175,186 Z" fill="#ffffff" strokeWidth="2.4" />
 
-    {/* Great Dark Battle Spear (Shaft & Vicious Serrated Blade) */}
-    <line x1="36" y1="16" x2="42" y2="226" strokeWidth="3" />
-    {/* Spear Blade */}
-    <path
-      d="M36 12 L44 32 L39 52 L36 78 L33 52 L28 32 Z"
-      fill="#ffffff"
-      strokeWidth="2.5"
-    />
-    <line x1="36" y1="14" x2="36" y2="78" strokeWidth="1.8" />
-    {/* Blade Serrations / Barbs */}
-    <polygon points="44,32 50,38 41,44" fill="#000000" />
-    <polygon points="28,32 22,38 31,44" fill="#000000" />
+    {/* Right Arm (Holding Shield) */}
+    {/* Sleeve */}
+    <polygon points="132,115 146,140 136,142" fill="#ffffff" strokeWidth="2.2" />
+    {/* Arm Line to Shield */}
+    <line x1="142" y1="138" x2="152" y2="152" strokeWidth="2.5" />
 
-    {/* Right Arm: Raised Claw or Short Dagger behind pelt */}
-    <line x1="130" y1="108" x2="148" y2="130" strokeWidth="2.8" />
-    <line x1="148" y1="130" x2="162" y2="118" strokeWidth="2.8" />
-    {/* Clawed Hand / Dagger */}
-    <path d="M160 114 L174 106 L168 124 Z" fill="#000000" />
-    {/* Claws */}
-    <line x1="158" y1="112" x2="166" y2="108" strokeWidth="2" />
-
-    {/* ================================================================= */}
-    {/* 6. FIERCE WOLF HEAD, EARS, SNOUT & FANGS */}
-    {/* ================================================================= */}
+    {/* ========================================== */}
+    {/* 6. HEAD, CHEEK GUARDS & FACE */}
+    {/* ========================================== */}
     {/* Neck */}
-    <path d="M84 76 L84 92 L116 92 L116 76" fill="#ffffff" strokeWidth="2.5" />
+    <line x1="96" y1="104" x2="96" y2="114" strokeWidth="2.2" />
+    <line x1="110" y1="104" x2="110" y2="114" strokeWidth="2.2" />
 
-    {/* Bushy Wolf Cheek Tufts / Ruff */}
-    <path d="M72 68 L60 76 L70 82 L64 90 L80 88" fill="#ffffff" strokeWidth="2.2" />
-    <path d="M128 68 L140 76 L130 82 L136 90 L120 88" fill="#ffffff" strokeWidth="2.2" />
+    {/* Face Outline & Cheek Flaps */}
+    <path d="M 77,80 C 73,92 73,104 81,107 C 88,110 118,110 125,107 C 133,104 133,92 129,80" fill="#ffffff" strokeWidth="2.5" />
+    {/* Cheek Flap inner lines */}
+    <path d="M 76,80 C 79,94 84,103 90,105" strokeWidth="2" />
+    <path d="M 130,80 C 127,94 122,103 116,105" strokeWidth="2" />
 
-    {/* Left Pointed Wolf Ear */}
-    <polygon points="76,56 64,18 90,44" fill="#ffffff" strokeWidth="2.6" />
-    <polygon points="76,50 70,28 84,44" fill="#000000" />
+    {/* Facial Features (Angry/Determined Soldier) */}
+    {/* Angry Eyebrows */}
+    <line x1="91" y1="76" x2="99" y2="82" strokeWidth="2.8" />
+    <line x1="118" y1="76" x2="110" y2="82" strokeWidth="2.8" />
+    {/* Eyes */}
+    <circle cx="95" cy="85" r="3.2" fill="#000000" />
+    <circle cx="114" cy="85" r="3.2" fill="#000000" />
+    {/* Nose */}
+    <line x1="104" y1="84" x2="104" y2="92" strokeWidth="2.4" />
+    {/* Down-turned Grumpy Mouth */}
+    <path d="M 97,100 C 103,94 109,96 114,99" strokeWidth="2.5" />
 
-    {/* Right Pointed Wolf Ear */}
-    <polygon points="124,56 136,18 110,44" fill="#ffffff" strokeWidth="2.6" />
-    <polygon points="124,50 130,28 116,44" fill="#000000" />
+    {/* ========================================== */}
+    {/* 7. ROMAN HELMET & CREST (Galea & Crista) */}
+    {/* ========================================== */}
+    {/* Helmet Brow Band / Visor */}
+    <rect x="73" y="70" width="60" height="9" rx="1.5" fill="#ffffff" strokeWidth="2.5" />
+    {/* Helmet Dome (Galea) */}
+    <path d="M 76,70 C 76,46 130,46 130,70 Z" fill="#ffffff" strokeWidth="2.5" />
+    {/* Dome Highlight Lines */}
+    <path d="M 85,55 C 89,50 94,49 97,50" strokeWidth="1.8" />
+    <circle cx="102" cy="51" r="1" fill="#000000" />
 
-    {/* Wolf Cranium & Forehead */}
-    <path d="M78 54 Q100 42 122 54" fill="#ffffff" strokeWidth="2.5" />
-    {/* Furrowed Brow Angle */}
-    <path d="M86 52 L100 58 L114 52" strokeWidth="2.4" />
+    {/* Helmet Crest (Fan Crista) */}
+    {/* Crest Post/Base */}
+    <line x1="99" y1="46" x2="99" y2="39" strokeWidth="2.2" />
+    <line x1="107" y1="46" x2="107" y2="39" strokeWidth="2.2" />
 
-    {/* Predatory Wolf Eyes (Intense & Narrowed) */}
-    {/* Left Eye */}
-    <polygon points="82,62 94,59 90,66" fill="#000000" />
-    <circle cx="88" cy="62" r="1.2" fill="#ffffff" />
-    {/* Right Eye */}
-    <polygon points="118,62 106,59 110,66" fill="#000000" />
-    <circle cx="112" cy="62" r="1.2" fill="#ffffff" />
-
-    {/* Wolf Snout Bridge */}
-    <path d="M92 63 L95 78 L105 78 L108 63" fill="#ffffff" strokeWidth="2" />
-    {/* Snout Wrinkles (Snarl) */}
-    <path d="M94 70 Q100 67 106 70" strokeWidth="2" />
-    <path d="M95 73 Q100 70 105 73" strokeWidth="1.8" />
-
-    {/* Black Nose */}
-    <polygon points="96,78 104,78 100,84" fill="#000000" strokeWidth="1" />
-
-    {/* Snarling Wolf Muzzle & Bared Fangs */}
-    {/* Upper Jaw / Lip */}
-    <path d="M84 76 Q92 84 100 84 Q108 84 116 76" strokeWidth="2.6" />
-    {/* Lower Jaw */}
-    <path d="M88 88 Q100 96 112 88" strokeWidth="2.4" fill="#ffffff" />
-
-    {/* Sharp Vicious Fangs (Upper Canines) */}
-    <polygon points="90,82 93,92 95,83" fill="#000000" />
-    <polygon points="105,83 107,92 110,82" fill="#000000" />
-    {/* Smaller Incisors */}
-    <polygon points="97,83 98,88 100,83" fill="#000000" />
-    <polygon points="100,83 102,88 103,83" fill="#000000" />
-    {/* Lower Canine Fangs */}
-    <polygon points="92,88 94,80 96,88" fill="#000000" />
-    <polygon points="104,88 106,80 108,88" fill="#000000" />
-
-    {/* Menacing Shadow Aura Marks */}
-    <path d="M48 24 Q52 24 52 20 Q52 24 56 24 Q52 24 52 28 Q52 24 48 24 Z" fill="#000000" />
-    <path d="M152 34 Q156 34 156 30 Q156 34 160 34 Q156 34 156 38 Q156 34 152 34 Z" fill="#000000" />
+    {/* Fan Crest Outer Arc and Inner Arc */}
+    <path d="M 82,41 C 94,36 112,36 124,41 L 138,28 C 118,12 88,12 68,28 Z" fill="#ffffff" strokeWidth="2.5" strokeLinejoin="round" />
+    {/* Radial segments in Crest */}
+    <line x1="77" y1="22" x2="88" y2="39" strokeWidth="2" />
+    <line x1="88" y1="18" x2="95" y2="37" strokeWidth="2" />
+    <line x1="101" y1="16" x2="102" y2="36" strokeWidth="2" />
+    <line x1="114" y1="18" x2="109" y2="37" strokeWidth="2" />
+    <line x1="125" y1="22" x2="116" y2="39" strokeWidth="2" />
   </svg>
 );
 

@@ -29,6 +29,7 @@ interface Props {
   config: GameConfig;
   onUpdateConfig: (newConfig: Partial<GameConfig>) => void;
   onAddBot: (count: number) => void;
+  onRemoveBot?: () => void;
   onStartGame: (
     customDeck?: Role[],
     discussionTimeSeconds?: number,
@@ -44,6 +45,7 @@ export const LobbyView: React.FC<Props> = ({
   config,
   onUpdateConfig,
   onAddBot,
+  onRemoveBot,
   onStartGame,
   onSwitchToLocalMode,
 }) => {
@@ -235,19 +237,30 @@ export const LobbyView: React.FC<Props> = ({
       <div className="space-y-2">
         {isHost && (
           <div className="space-y-2">
-            <div className="flex gap-2">
+            <div className="flex gap-1.5 flex-wrap">
               <button
                 onClick={() => onAddBot(1)}
-                className="flex-1 py-2 px-3 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 transition-colors"
+                disabled={players.length >= 16}
+                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors"
               >
                 <Bot size={13} /> +1 Bot
               </button>
               <button
                 onClick={() => onAddBot(3)}
-                className="flex-1 py-2 px-3 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 transition-colors"
+                disabled={players.length >= 14}
+                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors"
               >
                 <UserPlus size={13} /> +3 Bots
               </button>
+              {players.some(p => p.isBot) && onRemoveBot && (
+                <button
+                  onClick={onRemoveBot}
+                  className="py-2 px-2.5 border-2 border-red-800 text-red-800 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-red-50 transition-colors"
+                  title="Remover último bot adicionado"
+                >
+                  <Minus size={13} /> Bot
+                </button>
+              )}
               <button
                 onClick={() => setShowConfigModal(true)}
                 className="py-2 px-3 border-2 border-black bg-neutral-100 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1.5 hover:bg-black hover:text-white transition-colors"

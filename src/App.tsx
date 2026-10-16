@@ -579,16 +579,18 @@ export default function App() {
       if (socketRef.current && socketRef.current.connected) {
         socketRef.current.emit('start-game', payload);
       }
-      const res = await fetch(`/api/rooms/${roomData.code}/start`, {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (res.ok) {
-        sounds.playClick();
+      if (data?.room) {
+        setRoomData(data.room);
       }
-    } catch (e) {
-      console.error(e);
+      sounds.playClick();
+    } catch (e: any) {
+      console.error('Erro ao iniciar jogo online:', e);
+      setErrorMessage(e?.message || 'Erro ao iniciar a partida.');
     }
   };
 
@@ -598,14 +600,17 @@ export default function App() {
       if (socketRef.current && socketRef.current.connected) {
         socketRef.current.emit('confirm-role', { roomCode: roomData.code, playerId: myPlayerId });
       }
-      await fetch(`/api/rooms/${roomData.code}/confirm-role`, {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/confirm-role`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: myPlayerId }),
       });
+      if (data?.room) {
+        setRoomData(data.room);
+      }
       sounds.playClick();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('Erro ao confirmar papel:', e);
     }
   };
 
@@ -615,28 +620,66 @@ export default function App() {
       if (socketRef.current && socketRef.current.connected) {
         socketRef.current.emit('ready-phase', { roomCode: roomData.code, playerId: myPlayerId });
       }
-      await fetch(`/api/rooms/${roomData.code}/ready-phase`, {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/ready-phase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: myPlayerId }),
       });
+      if (data?.room) {
+        setRoomData(data.room);
+      }
       sounds.playClick();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('Erro ao confirmar fase:', e);
     }
   };
 
   const handleOnlineAddBot = async (count: number) => {
     if (!roomData) return;
     try {
-      await fetch(`/api/rooms/${roomData.code}/add-bot`, {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('add-bot', { roomCode: roomData.code, count }, (res: any) => {
+          if (res?.success && res.room) {
+            setRoomData(res.room);
+          }
+        });
+      }
+      const data = await apiFetch(`/api/rooms/${roomData.code}/add-bot`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ count }),
       });
+      if (data?.room) {
+        setRoomData(data.room);
+      }
       sounds.playClick();
-    } catch (e) {
-      console.error(e);
+    } catch (e: any) {
+      console.error('Erro ao adicionar bots:', e);
+      setErrorMessage(e?.message || 'Erro ao adicionar bots.');
+    }
+  };
+
+  const handleOnlineRemoveBot = async () => {
+    if (!roomData) return;
+    try {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('remove-bot', { roomCode: roomData.code }, (res: any) => {
+          if (res?.success && res.room) {
+            setRoomData(res.room);
+          }
+        });
+      }
+      const data = await apiFetch(`/api/rooms/${roomData.code}/remove-bot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+      sounds.playClick();
+    } catch (e: any) {
+      console.error('Erro ao remover bot:', e);
+      setErrorMessage(e?.message || 'Erro ao remover bot.');
     }
   };
 
@@ -649,14 +692,14 @@ export default function App() {
     if (!roomData) return;
     try {
       if (spyData) {
-        await fetch(`/api/rooms/${roomData.code}/spy-action`, {
+        await apiFetch(`/api/rooms/${roomData.code}/spy-action`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ playerId: myPlayerId, targetId: spyData.targetId }),
         });
       }
 
-      await fetch(`/api/rooms/${roomData.code}/night-action`, {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/night-action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -666,60 +709,78 @@ export default function App() {
           angelSacrifice: Boolean(angelSacrifice),
         }),
       });
-    } catch (e) {
-      console.error(e);
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+    } catch (e: any) {
+      console.error('Erro na ação noturna:', e);
     }
   };
 
   const handleOnlineVote = async (targetId: string | 'ABSTAIN') => {
     if (!roomData) return;
     try {
-      await fetch(`/api/rooms/${roomData.code}/vote`, {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/vote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: myPlayerId, targetId }),
       });
-    } catch (e) {
-      console.error(e);
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+    } catch (e: any) {
+      console.error('Erro ao votar:', e);
     }
   };
 
   const handleOnlineChat = async (text: string, channel: 'PUBLIC' | 'SOLDIERS') => {
     if (!roomData) return;
     try {
-      await fetch(`/api/rooms/${roomData.code}/chat`, {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: myPlayerId, text, channel }),
       });
-    } catch (e) {
-      console.error(e);
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+    } catch (e: any) {
+      console.error('Erro ao enviar mensagem:', e);
     }
   };
 
   const handleOnlineAdvancePhase = async () => {
     if (!roomData) return;
     try {
-      await fetch(`/api/rooms/${roomData.code}/advance-phase`, {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/advance-phase`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: myPlayerId }),
       });
-    } catch (e) {
-      console.error(e);
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+    } catch (e: any) {
+      console.error('Erro ao avançar fase:', e);
     }
   };
 
   const handleOnlineReset = async () => {
     if (!roomData) return;
     try {
-      await fetch(`/api/rooms/${roomData.code}/reset`, {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('reset-game', { roomCode: roomData.code, playerId: myPlayerId });
+      }
+      const data = await apiFetch(`/api/rooms/${roomData.code}/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: myPlayerId }),
       });
-    } catch (e) {
-      console.error(e);
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+    } catch (e: any) {
+      console.error('Erro ao resetar sala:', e);
     }
   };
 
@@ -1586,6 +1647,7 @@ export default function App() {
             config={roomData.config}
             onUpdateConfig={async () => {}}
             onAddBot={handleOnlineAddBot}
+            onRemoveBot={handleOnlineRemoveBot}
             onStartGame={handleOnlineStartGame}
             onSwitchToLocalMode={() => {
               if (eventSourceRef.current) eventSourceRef.current.close();
