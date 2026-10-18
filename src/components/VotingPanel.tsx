@@ -179,15 +179,17 @@ export const VotingPanel: React.FC<Props> = ({
             onClick={handleVoteSubmit}
             disabled={!selectedTargetId || selectedTargetId === 'ABSTAIN' || hasConfirmedVote}
             className={`flex-1 py-3 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-wider transition-all ${
-              selectedTargetId && selectedTargetId !== 'ABSTAIN' && !hasConfirmedVote
+              hasConfirmedVote && selectedTargetId !== 'ABSTAIN'
+                ? 'bg-emerald-600 text-white border-2 border-emerald-700 shadow-md shadow-emerald-950/40'
+                : selectedTargetId && selectedTargetId !== 'ABSTAIN' && !hasConfirmedVote
                 ? 'bg-black text-white active:scale-95 shadow-md hover:bg-neutral-800'
                 : 'bg-neutral-200 text-neutral-500 cursor-not-allowed'
             }`}
           >
             <FourPointStar size={12} />
             <span>
-              {hasConfirmedVote
-                ? 'VOTO CONFIRMADO'
+              {hasConfirmedVote && selectedTargetId !== 'ABSTAIN'
+                ? '✓ VOTO CONFIRMADO E SALVO'
                 : useDoubleVote
                 ? 'CONDENAR COM VOTO DUPLO (PESO 2)'
                 : 'CONDENAR ALVO'}
@@ -198,13 +200,15 @@ export const VotingPanel: React.FC<Props> = ({
           <button
             onClick={handleAbstain}
             disabled={hasConfirmedVote}
-            className={`px-4 py-3 rounded-full border-2 border-black text-xs font-mono font-bold uppercase transition-all ${
-              selectedTargetId === 'ABSTAIN'
-                ? 'bg-black text-white'
-                : 'bg-white text-black hover:bg-neutral-100'
+            className={`px-4 py-3 rounded-full border-2 text-xs font-mono font-bold uppercase transition-all ${
+              hasConfirmedVote && selectedTargetId === 'ABSTAIN'
+                ? 'bg-emerald-600 text-white border-emerald-700 shadow-md'
+                : selectedTargetId === 'ABSTAIN'
+                ? 'bg-black text-white border-black'
+                : 'bg-white text-black border-black hover:bg-neutral-100'
             }`}
           >
-            Abster-se
+            {hasConfirmedVote && selectedTargetId === 'ABSTAIN' ? '✓ Abstenção Salva' : 'Abster-se'}
           </button>
         </div>
 

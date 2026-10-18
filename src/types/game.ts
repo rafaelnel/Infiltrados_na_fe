@@ -173,6 +173,7 @@ export interface Player {
 
   hasConfirmedRole?: boolean;
   hasApprovedPhase?: boolean;
+  disconnected?: boolean;
 
   // Regras de Funções
   lastProtectedTargetId?: string | null; // Pastor: não pode repetir 2 noites seguidas

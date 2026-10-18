@@ -19,6 +19,8 @@ import {
   ShieldAlert,
   X,
   Sliders,
+  LogOut,
+  AlertTriangle,
 } from 'lucide-react';
 import { getMaxAllowedSoldiers, generateRecommendedDeck } from './LocalPlayersSetupModal';
 
@@ -36,6 +38,7 @@ interface Props {
     modifiersConfig?: ModifiersConfig
   ) => void;
   onSwitchToLocalMode: () => void;
+  onLeaveRoom?: () => void;
 }
 
 export const LobbyView: React.FC<Props> = ({
@@ -48,11 +51,14 @@ export const LobbyView: React.FC<Props> = ({
   onRemoveBot,
   onStartGame,
   onSwitchToLocalMode,
+  onLeaveRoom,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const [isBotBusy, setIsBotBusy] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [isLeaving, setIsLeaving] = useState(false);
 
   const handleAddBotClick = async (count: number) => {
     if (isBotBusy) return;
@@ -327,6 +333,68 @@ export const LobbyView: React.FC<Props> = ({
           <div className="text-center py-3 border-2 border-black rounded-full bg-neutral-100 text-xs font-mono font-bold text-neutral-700">
             Aguardando o anfitrião configurar e iniciar a partida...
           </div>
+        )}
+
+        {/* Sair da Sala com Confirmação em 2 Etapas */}
+        {showLeaveConfirm ? (
+          <div className="p-3 bg-amber-50 border-2 border-amber-600 rounded-2xl space-y-2 animate-fadeIn text-left font-mono">
+            <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
+              <AlertTriangle size={15} className="text-amber-700" />
+              <span>TEM CERTEZA QUE DESEJA SAIR?</span>
+            </div>
+            <p className="text-[10px] text-amber-800 leading-tight">
+              {isHost
+                ? 'Como anfitrião, se você sair da sala, outro jogador online conectado será sorteado aleatoriamente para assumir como o novo anfitrião.'
+                : 'Você deixará a sala de espera do rebanho.'}
+            </p>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowLeaveConfirm(false)}
+                disabled={isLeaving}
+                className="flex-1 py-1.5 px-2 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  setIsLeaving(true);
+                  setTimeout(() => {
+                    if (onLeaveRoom) onLeaveRoom();
+                  }, 250);
+                }}
+                disabled={isLeaving}
+                className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 shadow-xs ${
+                  isLeaving
+                    ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black'
+                    : 'bg-amber-600 text-white hover:bg-amber-700'
+                }`}
+              >
+                {isLeaving ? (
+                  <>
+                    <Check size={12} />
+                    <span>Saindo... ✓</span>
+                  </>
+                ) : (
+                  'Sim, Sair da Sala'
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              sounds.playClick();
+              setShowLeaveConfirm(true);
+            }}
+            className="w-full py-2 border border-neutral-400 bg-white rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-600 hover:text-red-700 hover:border-red-400 flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <LogOut size={13} />
+            <span>Sair da Sala {isHost && '(Passar Liderança)'}</span>
+          </button>
         )}
       </div>
 

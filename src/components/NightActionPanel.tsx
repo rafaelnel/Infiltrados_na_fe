@@ -21,6 +21,7 @@ interface Props {
   player: Player;
   allPlayers: Player[];
   canSelfProtectPastor: boolean;
+  soldiersList?: Array<{ id: string; name: string }>;
   onPerformAction: (
     targetId: string,
     secondaryTargetId?: string,
@@ -35,6 +36,7 @@ export const NightActionPanel: React.FC<Props> = ({
   player,
   allPlayers,
   canSelfProtectPastor,
+  soldiersList,
   onPerformAction,
   onAdvanceNight,
   isHost,
@@ -49,6 +51,7 @@ export const NightActionPanel: React.FC<Props> = ({
   // Etapa 2: Finalizar ação noturna
   const [resultRevealed, setResultRevealed] = useState(false);
   const [resultMessage, setResultMessage] = useState<string | null>(null);
+  const [isActionSaved, setIsActionSaved] = useState(false);
 
   // Estados dos Modificadores Especiais
   const [angelSacrifice, setAngelSacrifice] = useState<boolean>(Boolean(player.angelSacrificeTonight));
@@ -62,6 +65,7 @@ export const NightActionPanel: React.FC<Props> = ({
     setSelectedSecondaryId(player.nightActionSecondaryId || null);
     setResultRevealed(false);
     setResultMessage(null);
+    setIsActionSaved(false);
     setAngelSacrifice(Boolean(player.angelSacrificeTonight));
     setSpyTargetId(null);
     setActionError(null);
@@ -76,8 +80,13 @@ export const NightActionPanel: React.FC<Props> = ({
   if (player.role === 'PASTOR' && !canSelfProtectPastor) {
     validTargets = livingPlayers.filter(p => p.id !== player.id);
   } else if (player.role === 'SOLDADO') {
-    // Soldados não atacam seus companheiros infiltrados
-    validTargets = livingPlayers.filter(p => p.team !== 'SOLDADOS');
+    // Soldados NÃO podem atacar a si mesmos nem companheiros de facção
+    const excludedIds = new Set<string>();
+    excludedIds.add(player.id);
+    if (soldiersList && soldiersList.length > 0) {
+      soldiersList.forEach(s => excludedIds.add(s.id));
+    }
+    validTargets = livingPlayers.filter(p => !excludedIds.has(p.id) && p.team !== 'SOLDADOS');
   }
 
   // Pastor: Restrição de não proteger a mesma pessoa em duas noites consecutivas
@@ -225,6 +234,7 @@ export const NightActionPanel: React.FC<Props> = ({
   // =========================================================================
   const handleFinalizeAction = () => {
     sounds.playClick();
+    setIsActionSaved(true);
     const finalTarget = selectedTargetId || 'ABSTAIN';
     const spyData = spyPerformed && spyTargetId && spyResultText
       ? { targetId: spyTargetId, result: spyResultText }
@@ -241,6 +251,7 @@ export const NightActionPanel: React.FC<Props> = ({
   // Se o jogador quiser alterar a escolha antes de finalizar
   const handleResetChoice = () => {
     sounds.playClick();
+    setIsActionSaved(false);
     setResultRevealed(false);
     setResultMessage(null);
   };
@@ -427,11 +438,25 @@ export const NightActionPanel: React.FC<Props> = ({
           <div className="space-y-2">
             <button
               onClick={handleFinalizeAction}
-              className="w-full bg-white text-[#0B132B] py-4 px-6 rounded-full flex items-center justify-center space-x-2 font-mono text-xs sm:text-sm font-black tracking-widest uppercase hover:bg-slate-200 active:scale-[0.98] transition-all shadow-xl shadow-indigo-900/50"
+              disabled={isActionSaved}
+              className={`w-full py-4 px-6 rounded-full flex items-center justify-center space-x-2 font-mono text-xs sm:text-sm font-black tracking-widest uppercase transition-all shadow-xl ${
+                isActionSaved
+                  ? 'bg-emerald-600 text-white border-2 border-emerald-400 shadow-emerald-950/60 scale-[0.98]'
+                  : 'bg-white text-[#0B132B] hover:bg-slate-200 active:scale-[0.98] shadow-indigo-900/50'
+              }`}
             >
-              <FourPointStar size={16} className="text-[#0B132B]" />
-              <span>FINALIZAR AÇÃO NOTURNA</span>
-              <FourPointStar size={16} className="text-[#0B132B]" />
+              {isActionSaved ? (
+                <>
+                  <Check size={18} />
+                  <span>AÇÃO NOTURNA CONFIRMADA E SALVA ✓</span>
+                </>
+              ) : (
+                <>
+                  <FourPointStar size={16} className="text-[#0B132B]" />
+                  <span>FINALIZAR AÇÃO NOTURNA</span>
+                  <FourPointStar size={16} className="text-[#0B132B]" />
+                </>
+              )}
             </button>
 
             <button

@@ -57,6 +57,9 @@ import {
   WifiOff,
   RefreshCw,
   Server,
+  LogOut,
+  X,
+  Check,
 } from 'lucide-react';
 
 export default function App() {
@@ -80,9 +83,27 @@ export default function App() {
   // Modais de Criação e Entrada na Sala Online com Escolha Obrigatória de Nome
   const [isCreateRoomModalOpen, setIsCreateRoomModalOpen] = useState(false);
   const [isJoinRoomModalOpen, setIsJoinRoomModalOpen] = useState(false);
+  const [isDisconnectModalOpen, setIsDisconnectModalOpen] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [hostStartVoteConfirm, setHostStartVoteConfirm] = useState(false);
+  const [isAdvancingVote, setIsAdvancingVote] = useState(false);
+  const isAddingBotRef = useRef(false);
   const [modalName, setModalName] = useState('');
   const [modalCode, setModalCode] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
+
+  // Sessão ativa salva para reconexão em caso de fechamento acidental
+  const [savedOnlineRoom, setSavedOnlineRoom] = useState<{ code: string; playerId: string; name: string } | null>(() => {
+    try {
+      const code = localStorage.getItem('online_room_code');
+      const pId = localStorage.getItem('online_player_id');
+      const name = localStorage.getItem('online_player_name');
+      if (code && pId) {
+        return { code, playerId: pId, name: name || '' };
+      }
+    } catch {}
+    return null;
+  });
 
   // URL do Servidor Backend salva permanentemente (https://infiltrados-na-fe.onrender.com)
   const [serverUrl] = useState<string>(() => {
@@ -453,6 +474,12 @@ export default function App() {
             setRevealedResultDay(null);
             setIsCreateRoomModalOpen(false);
             sounds.playClick();
+            try {
+              localStorage.setItem('online_room_code', res.room.code);
+              localStorage.setItem('online_player_id', res.playerId);
+              localStorage.setItem('online_player_name', host);
+              setSavedOnlineRoom({ code: res.room.code, playerId: res.playerId, name: host });
+            } catch {}
           } else {
             fallbackRestCreate(host);
           }
@@ -479,10 +506,16 @@ export default function App() {
     setRevealedResultDay(null);
     setIsCreateRoomModalOpen(false);
     sounds.playClick();
+    try {
+      localStorage.setItem('online_room_code', data.roomCode);
+      localStorage.setItem('online_player_id', data.playerId);
+      localStorage.setItem('online_player_name', host);
+      setSavedOnlineRoom({ code: data.roomCode, playerId: data.playerId, name: host });
+    } catch {}
     setupSSE(data.roomCode, data.playerId);
   };
 
-  const handleJoinRoom = async (chosenCode?: string, chosenName?: string) => {
+  const handleJoinRoom = async (chosenCode?: string, chosenName?: string, explicitPlayerId?: string) => {
     const cleanCode = (chosenCode || modalCode || inputRoomCode).trim().toUpperCase();
     if (!cleanCode) {
       setModalError('Informe o código de 5 caracteres da sala.');
@@ -491,39 +524,51 @@ export default function App() {
       return;
     }
     const name = (chosenName || modalName || playerName).trim();
-    if (!name) {
+    const storedPlayerId = explicitPlayerId || localStorage.getItem('online_player_id') || undefined;
+
+    if (!name && !storedPlayerId) {
       setModalError('Por favor, escolha seu nome de jogador antes de entrar na sala.');
       setModalCode(cleanCode);
       setModalName(playerName);
       setIsJoinRoomModalOpen(true);
       return;
     }
-    setPlayerName(name);
+    if (name) setPlayerName(name);
     setInputRoomCode(cleanCode);
 
     try {
       setErrorMessage(null);
       setModalError(null);
       if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('join-room', { roomCode: cleanCode, playerName: name }, (res: any) => {
-          if (res?.success) {
-            setMyPlayerId(res.playerId);
-            setRoomData(res.room);
-            setMode('ONLINE');
-            setRevealedResultDay(null);
-            setIsJoinRoomModalOpen(false);
-            sounds.playClick();
-          } else {
-            const msg = res?.error || res?.message || 'Erro ao entrar na sala.';
-            setErrorMessage(msg);
-            setModalError(msg);
+        socketRef.current.emit(
+          'join-room',
+          { roomCode: cleanCode, playerName: name, playerId: storedPlayerId },
+          (res: any) => {
+            if (res?.success) {
+              setMyPlayerId(res.playerId);
+              setRoomData(res.room);
+              setMode('ONLINE');
+              setRevealedResultDay(null);
+              setIsJoinRoomModalOpen(false);
+              sounds.playClick();
+              try {
+                localStorage.setItem('online_room_code', cleanCode);
+                localStorage.setItem('online_player_id', res.playerId);
+                localStorage.setItem('online_player_name', name || res.room?.self?.name || '');
+                setSavedOnlineRoom({ code: cleanCode, playerId: res.playerId, name: name || res.room?.self?.name || '' });
+              } catch {}
+            } else {
+              const msg = res?.error || res?.message || 'Erro ao entrar na sala.';
+              setErrorMessage(msg);
+              setModalError(msg);
+            }
           }
-        });
+        );
       } else {
         const data = await apiFetch(`/api/rooms/${cleanCode}/join`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ playerName: name }),
+          body: JSON.stringify({ playerName: name, playerId: storedPlayerId }),
         });
 
         setMyPlayerId(data.playerId);
@@ -532,6 +577,12 @@ export default function App() {
         setRevealedResultDay(null);
         setIsJoinRoomModalOpen(false);
         sounds.playClick();
+        try {
+          localStorage.setItem('online_room_code', cleanCode);
+          localStorage.setItem('online_player_id', data.playerId);
+          localStorage.setItem('online_player_name', name || data.room?.self?.name || '');
+          setSavedOnlineRoom({ code: cleanCode, playerId: data.playerId, name: name || data.room?.self?.name || '' });
+        } catch {}
         setupSSE(data.roomCode, data.playerId);
       }
     } catch (err: any) {
@@ -626,7 +677,8 @@ export default function App() {
   };
 
   const handleOnlineAddBot = async (count: number) => {
-    if (!roomData) return;
+    if (!roomData || isAddingBotRef.current) return;
+    isAddingBotRef.current = true;
     try {
       const data = await apiFetch(`/api/rooms/${roomData.code}/add-bot`, {
         method: 'POST',
@@ -640,6 +692,10 @@ export default function App() {
     } catch (e: any) {
       console.error('Erro ao adicionar bots:', e);
       setErrorMessage(e?.message || 'Erro ao adicionar bots.');
+    } finally {
+      setTimeout(() => {
+        isAddingBotRef.current = false;
+      }, 500);
     }
   };
 
@@ -758,6 +814,88 @@ export default function App() {
       }
     } catch (e: any) {
       console.error('Erro ao resetar sala:', e);
+    }
+  };
+
+  const handleOnlineRestartGame = async () => {
+    if (!roomData) return;
+    try {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/restart`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: myPlayerId }),
+      });
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+      sounds.playGavelStrike();
+    } catch (e: any) {
+      console.error('Erro ao reiniciar partida online:', e);
+      setErrorMessage(e?.message || 'Erro ao reiniciar partida.');
+    }
+  };
+
+  const handleOnlineLeaveRoom = async () => {
+    if (!roomData) return;
+    try {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('leave-room');
+      }
+      await apiFetch(`/api/rooms/${roomData.code}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: myPlayerId }),
+      }).catch(() => {});
+    } finally {
+      try {
+        localStorage.removeItem('online_room_code');
+        localStorage.removeItem('online_player_id');
+        localStorage.removeItem('online_player_name');
+        setSavedOnlineRoom(null);
+      } catch {}
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      setRoomData(null);
+      setMode('ENTRY');
+      sounds.playClick();
+    }
+  };
+
+  const handleOnlineVoluntaryDisconnect = async () => {
+    if (!roomData) {
+      setMode('ENTRY');
+      setIsDisconnectModalOpen(false);
+      return;
+    }
+    setIsDisconnecting(true);
+    try {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('leave-room');
+      }
+      await apiFetch(`/api/rooms/${roomData.code}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: myPlayerId }),
+      }).catch(() => {});
+    } finally {
+      // PRESERVA a sessão no localStorage para permitir que o jogador volte à partida em andamento!
+      try {
+        localStorage.setItem('online_room_code', roomData.code);
+        if (myPlayerId) localStorage.setItem('online_player_id', myPlayerId);
+        const myName = roomData.self?.name || playerName || '';
+        if (myName) localStorage.setItem('online_player_name', myName);
+        setSavedOnlineRoom({ code: roomData.code, playerId: myPlayerId || '', name: myName });
+      } catch {}
+
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+      setRoomData(null);
+      setMode('ENTRY');
+      setIsDisconnectModalOpen(false);
+      setIsDisconnecting(false);
+      sounds.playClick();
     }
   };
 
@@ -904,6 +1042,52 @@ export default function App() {
 
           {/* Player Input Form & Modes */}
           <div className="space-y-3 w-full max-w-md mx-auto">
+            {/* Banner de Reconexão para caso de fechamento acidental ou desconexão prévia */}
+            {savedOnlineRoom && (
+              <div className="p-3.5 bg-emerald-50 border-2 border-emerald-600 rounded-2xl space-y-2 animate-fadeIn text-left font-mono shadow-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-emerald-950 font-black text-xs">
+                    <Sparkles size={14} className="text-emerald-700" />
+                    <span>PARTIDA EM ANDAMENTO DETECTADA!</span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded-full font-bold">
+                    Sala: {savedOnlineRoom.code}
+                  </span>
+                </div>
+                <p className="text-[11px] text-emerald-900 leading-snug">
+                  Você estava jogando na sala <strong>{savedOnlineRoom.code}</strong> como <strong>{savedOnlineRoom.name}</strong>. Deseja retornar ao jogo agora?
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playClick();
+                      try {
+                        localStorage.removeItem('online_room_code');
+                        localStorage.removeItem('online_player_id');
+                        localStorage.removeItem('online_player_name');
+                        setSavedOnlineRoom(null);
+                      } catch {}
+                    }}
+                    className="py-1.5 px-3 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase text-neutral-600 hover:bg-neutral-100"
+                  >
+                    Descartar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sounds.playClick();
+                      handleJoinRoom(savedOnlineRoom.code, savedOnlineRoom.name, savedOnlineRoom.playerId);
+                    }}
+                    className="flex-1 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all"
+                  >
+                    <RotateCcw size={13} />
+                    <span>VOLTAR À PARTIDA AGORA</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1">
               <label className="text-xs font-mono font-bold uppercase text-neutral-600 block">
                 Seu Nome de Batismo:
@@ -1630,6 +1814,7 @@ export default function App() {
               if (eventSourceRef.current) eventSourceRef.current.close();
               setIsLocalSetupOpen(true);
             }}
+            onLeaveRoom={handleOnlineLeaveRoom}
           />
         );
       }
@@ -1749,6 +1934,7 @@ export default function App() {
               player={me}
               allPlayers={roomData.players}
               canSelfProtectPastor={roomData.config.pastorCanSelfProtect}
+              soldiersList={roomData.soldiersList}
               onPerformAction={handleOnlineNightAction}
               onAdvanceNight={isHost ? handleOnlineAdvancePhase : undefined}
               isHost={isHost}
@@ -1841,31 +2027,96 @@ export default function App() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-100 border border-black/30 rounded-xl text-[11px] font-mono">
-                <span>{hasMeApproved ? '✓ Voto aprovado' : 'Aguardando sua confirmação'}</span>
-                <span className="font-bold">{totalApproved} de {totalLiving} prontos para votar</span>
+                <span className={hasMeApproved ? 'text-emerald-700 font-bold' : 'text-neutral-700'}>
+                  {hasMeApproved ? '✓ Pronto para votar confirmado' : 'Aguardando seu clique'}
+                </span>
+                <span className="font-bold text-black">{totalApproved} de {totalLiving} prontos para votar</span>
               </div>
 
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <button
+                  type="button"
                   onClick={handleOnlineReadyPhase}
                   disabled={hasMeApproved}
-                  className={`flex-1 py-3 rounded-full text-xs font-mono font-black uppercase tracking-wider transition-all ${
+                  className={`flex-1 py-3 px-4 rounded-full text-xs font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-md ${
                     hasMeApproved
-                      ? 'bg-neutral-300 text-neutral-600 border border-neutral-400'
-                      : 'bg-black text-white hover:bg-neutral-800 active:scale-95 shadow-md'
+                      ? 'bg-emerald-600 text-white border-2 border-emerald-700 shadow-emerald-950/40'
+                      : 'bg-black text-white hover:bg-neutral-800 active:scale-95'
                   }`}
                 >
-                  {hasMeApproved ? 'AGUARDANDO OS DEMAIS...' : 'PRONTO PARA JULGAMENTO'}
+                  {hasMeApproved ? (
+                    <>
+                      <Check size={16} />
+                      <span>PRONTO PARA VOTAR (CONFIRMADO ✓)</span>
+                    </>
+                  ) : (
+                    <>
+                      <FourPointStar size={12} />
+                      <span>PRONTO PARA VOTAR</span>
+                      <FourPointStar size={12} />
+                    </>
+                  )}
                 </button>
 
                 {isHost && (
-                  <button
-                    onClick={handleOnlineAdvancePhase}
-                    className="py-3 px-4 border-2 border-black bg-white text-black rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-100"
-                    title="Forçar Abertura da Votação"
-                  >
-                    Abrir Votação
-                  </button>
+                  <>
+                    {hostStartVoteConfirm ? (
+                      <div className="p-2.5 bg-amber-50 border-2 border-amber-600 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-2 text-left w-full sm:w-auto animate-fadeIn">
+                        <span className="text-[11px] font-mono text-amber-950 font-bold leading-tight">
+                          Iniciar votação antecipada para todos?
+                        </span>
+                        <div className="flex gap-1.5 w-full sm:w-auto">
+                          <button
+                            type="button"
+                            onClick={() => setHostStartVoteConfirm(false)}
+                            disabled={isAdvancingVote}
+                            className="flex-1 sm:flex-none py-1.5 px-3 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sounds.playClick();
+                              setIsAdvancingVote(true);
+                              setTimeout(() => {
+                                handleOnlineAdvancePhase();
+                                setIsAdvancingVote(false);
+                                setHostStartVoteConfirm(false);
+                              }, 250);
+                            }}
+                            disabled={isAdvancingVote}
+                            className={`flex-1 sm:flex-none py-1.5 px-3 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 shadow-sm ${
+                              isAdvancingVote
+                                ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black'
+                                : 'bg-black text-white hover:bg-neutral-800'
+                            }`}
+                          >
+                            {isAdvancingVote ? (
+                              <>
+                                <Check size={13} />
+                                <span>Iniciando... ✓</span>
+                              </>
+                            ) : (
+                              'Sim, Iniciar Votação'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sounds.playClick();
+                          setHostStartVoteConfirm(true);
+                        }}
+                        className="py-3 px-4 border-2 border-black bg-white text-black rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-100 active:scale-95 transition-all whitespace-nowrap"
+                        title="Iniciar Votação Antecipada (Anfitrião)"
+                      >
+                        Começar Votação (Host)
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>
@@ -2059,6 +2310,7 @@ export default function App() {
         title="INFILTRADO NA FÉ"
         onOpenManual={() => setIsManualOpen(true)}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onDisconnect={mode === 'ONLINE' && roomData ? () => setIsDisconnectModalOpen(true) : undefined}
         showSettings={showSettings}
         roomCode={roomData?.code}
         isNight={
@@ -2351,6 +2603,81 @@ export default function App() {
                 className="flex-1 py-2.5 bg-black text-white rounded-xl text-xs font-bold uppercase hover:bg-neutral-800 shadow-md active:scale-95"
               >
                 ENTRAR DEFINITIVO
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Desconexão em 2 Etapas com confirmação e mudança de cor */}
+      {isDisconnectModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fadeIn font-mono">
+          <div className="w-full max-w-sm bg-white border-3 border-black rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl animate-scaleUp">
+            <div className="flex items-center justify-between border-b-2 border-black pb-2">
+              <div className="flex items-center gap-2 text-black font-black text-sm uppercase">
+                <LogOut size={18} className="text-red-600" />
+                <span>Desconectar da Partida?</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isDisconnecting) setIsDisconnectModalOpen(false);
+                }}
+                className="p-1 border border-black rounded-lg hover:bg-black hover:text-white transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-left">
+              <p className="text-xs text-neutral-800 leading-relaxed font-bold">
+                Deseja desconectar seu aparelho desta partida online?
+              </p>
+              <div className="p-3 bg-neutral-50 border border-neutral-300 rounded-xl space-y-1.5 text-[11px] text-neutral-600 leading-tight">
+                <p>
+                  🛡️ <strong>Sua vaga e papel continuarão salvos:</strong> se você sair agora ou se sua conexão cair sem querer, você poderá <strong>voltar para a partida em andamento</strong> a qualquer momento digitando o código da sala (<strong>{roomData?.code}</strong>) e seu nome (<strong>{roomData?.self?.name || playerName}</strong>).
+                </p>
+                {roomData?.hostId === myPlayerId && (
+                  <p className="text-amber-800 font-bold pt-1 border-t border-neutral-200">
+                    👑 Como você é o anfitrião, ao sair, outro jogador conectado será sorteado aleatoriamente para liderar a sala.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsDisconnectModalOpen(false)}
+                disabled={isDisconnecting}
+                className="flex-1 py-2.5 px-3 border-2 border-black rounded-xl text-xs font-bold uppercase hover:bg-neutral-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  setIsDisconnecting(true);
+                  setTimeout(() => {
+                    handleOnlineVoluntaryDisconnect();
+                  }, 280);
+                }}
+                disabled={isDisconnecting}
+                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold uppercase transition-all flex items-center justify-center gap-1.5 shadow-md ${
+                  isDisconnecting
+                    ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black shadow-emerald-950/40'
+                    : 'bg-red-600 hover:bg-red-700 text-white'
+                }`}
+              >
+                {isDisconnecting ? (
+                  <>
+                    <Check size={14} />
+                    <span>Desconectando... ✓</span>
+                  </>
+                ) : (
+                  'Sim, Desconectar'
+                )}
               </button>
             </div>
           </div>

@@ -27,11 +27,13 @@ export const RoleCardSecret: React.FC<Props> = ({
 }) => {
   // Always start covered whenever player or role changes!
   const [isRevealed, setIsRevealed] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
   const metadata = ROLES_METADATA[role] || ROLES_METADATA.OVELHA;
 
   // Whenever the active player changes, ALWAYS force-lock the screen immediately!
   useEffect(() => {
     setIsRevealed(false);
+    setIsConfirmed(false);
   }, [playerName, role]);
 
   const handleReveal = () => {
@@ -41,10 +43,14 @@ export const RoleCardSecret: React.FC<Props> = ({
 
   const handleHideAndPass = () => {
     sounds.playClick();
-    // Instantly hide role first
-    setIsRevealed(false);
-    // Then call parent confirm/transition callback
-    onConfirm();
+    setIsConfirmed(true);
+    setTimeout(() => {
+      // Instantly hide role first
+      setIsRevealed(false);
+      setIsConfirmed(false);
+      // Then call parent confirm/transition callback
+      onConfirm();
+    }, 280);
   };
 
   // =========================================================================
@@ -196,16 +202,31 @@ export const RoleCardSecret: React.FC<Props> = ({
 
       {/* Action / Next Player Button */}
       <button
+        type="button"
         onClick={handleHideAndPass}
-        className="w-full max-w-xs bg-black text-white py-3.5 rounded-full flex items-center justify-center space-x-2 active:scale-[0.98] transition-transform shadow-md hover:bg-neutral-800 text-xs font-black tracking-widest uppercase"
+        disabled={isConfirmed}
+        className={`w-full max-w-xs py-3.5 rounded-full flex items-center justify-center space-x-2 active:scale-[0.98] transition-all shadow-md text-xs font-black tracking-widest uppercase ${
+          isConfirmed
+            ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black shadow-emerald-950/40'
+            : 'bg-black text-white hover:bg-neutral-800'
+        }`}
       >
-        <FourPointStar size={14} className="text-white" />
-        <span>
-          {nextPlayerName
-            ? `OCULTAR E PASSAR PARA ${nextPlayerName.toUpperCase()}`
-            : confirmLabel}
-        </span>
-        <FourPointStar size={14} className="text-white" />
+        {isConfirmed ? (
+          <>
+            <Check size={16} />
+            <span>CONFIRMADO ✓</span>
+          </>
+        ) : (
+          <>
+            <FourPointStar size={14} className="text-white" />
+            <span>
+              {nextPlayerName
+                ? `OCULTAR E PASSAR PARA ${nextPlayerName.toUpperCase()}`
+                : confirmLabel}
+            </span>
+            <FourPointStar size={14} className="text-white" />
+          </>
+        )}
       </button>
     </div>
   );

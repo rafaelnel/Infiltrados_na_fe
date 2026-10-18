@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, BookOpen, Moon, Sun, Settings } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, Moon, Sun, Settings, LogOut } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   onOpenManual: () => void;
   onOpenSettings?: () => void;
   showSettings?: boolean;
+  onDisconnect?: () => void;
   roomCode?: string;
   phaseLabel?: string;
   isNight?: boolean;
@@ -19,6 +20,7 @@ export const PhoneContainer: React.FC<Props> = ({
   onOpenManual,
   onOpenSettings,
   showSettings = false,
+  onDisconnect,
   roomCode,
   phaseLabel,
   isNight = false,
@@ -116,7 +118,7 @@ export const PhoneContainer: React.FC<Props> = ({
             {showSettings && onOpenSettings && (
               <button
                 onClick={onOpenSettings}
-                title="Ajustes da Partida (Reiniciar ou Voltar)"
+                title="Ajustes do Anfitrião (Reiniciar ou Voltar)"
                 className={`w-9 h-9 border-2 rounded-xl flex items-center justify-center transition-colors ${
                   isNight
                     ? 'border-indigo-400/60 bg-[#141E3D] text-indigo-100 hover:bg-indigo-900/60'
@@ -124,6 +126,21 @@ export const PhoneContainer: React.FC<Props> = ({
                 }`}
               >
                 <Settings size={16} />
+              </button>
+            )}
+
+            {onDisconnect && (
+              <button
+                onClick={onDisconnect}
+                title="Desconectar / Sair da Partida"
+                className={`h-9 px-2.5 border-2 rounded-xl flex items-center gap-1.5 transition-colors text-xs font-mono font-bold uppercase tracking-wider ${
+                  isNight
+                    ? 'border-red-400/60 bg-[#1f162b] text-red-300 hover:bg-red-950/80'
+                    : 'border-red-600 bg-red-50 hover:bg-red-100 text-red-700'
+                }`}
+              >
+                <LogOut size={14} />
+                <span className="hidden sm:inline">Desconectar</span>
               </button>
             )}
 

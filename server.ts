@@ -46,6 +46,7 @@ export interface Player {
   lastProtectedId?: string | null;
   hasConfirmedRole?: boolean;
   hasApprovedPhase?: boolean;
+  disconnected?: boolean;
 }
 
 export interface ChatMessage {
@@ -174,6 +175,7 @@ function sanitizeRoomForClients(room: Room, forPlayerId?: string) {
       hasActedTonight: p.hasActedTonight,
       hasConfirmedRole: p.hasConfirmedRole,
       hasApprovedPhase: p.hasApprovedPhase,
+      disconnected: Boolean(p.disconnected),
       voteTargetId: room.phase === 'DAY_RESULT' || room.phase === 'GAME_OVER' ? p.voteTargetId : (p.voteTargetId ? 'VOTED' : null),
       role: room.phase === 'GAME_OVER' || (!p.isAlive && room.config.revealRolesOnDeath) ? p.role : undefined,
       team: room.phase === 'GAME_OVER' ? p.team : undefined,
@@ -314,11 +316,11 @@ async function startServer() {
     });
 
     // B) Entrar em Sala Existente (join-room)
-    socket.on('join-room', (data: { roomCode: string; playerName?: string }, callback?: (res: any) => void) => {
+    socket.on('join-room', (data: { roomCode: string; playerName?: string; playerId?: string }, callback?: (res: any) => void) => {
       const code = (data?.roomCode || '').toUpperCase().trim();
       const playerName = (data?.playerName || '').trim();
 
-      if (!playerName) {
+      if (!playerName && !data?.playerId) {
         const err = { error: 'Por favor, escolha seu nome de jogador antes de entrar na sala.' };
         socket.emit('join-error', err);
         if (callback) callback({ success: false, ...err });
@@ -331,6 +333,73 @@ async function startServer() {
         const err = { error: 'Sala não encontrada. Verifique o código de 5 caracteres.' };
         socket.emit('join-error', err);
         if (callback) callback(err);
+        return;
+      }
+
+      // Verificar se é reconexão de jogador existente (por playerId, playerName ou identificação de humano desconectado)
+      const reqPlayerId = (data?.playerId || '').trim();
+      const cleanPlayerName = playerName.toLowerCase().trim();
+
+      let existingPlayer: Player | undefined;
+
+      // 1. Por ID exato ou case-insensitive
+      if (reqPlayerId) {
+        existingPlayer = room.players.find(p => p.id === reqPlayerId || p.id.toLowerCase() === reqPlayerId.toLowerCase());
+      }
+
+      // 2. Por nome do jogador (não-bot)
+      if (!existingPlayer && cleanPlayerName) {
+        existingPlayer = room.players.find(p => !p.isBot && p.name.trim().toLowerCase() === cleanPlayerName);
+      }
+
+      // 3. Por correspondência de nome começando igual
+      if (!existingPlayer && cleanPlayerName && cleanPlayerName.length >= 2) {
+        existingPlayer = room.players.find(p => !p.isBot && (
+          p.name.trim().toLowerCase().startsWith(cleanPlayerName) ||
+          cleanPlayerName.startsWith(p.name.trim().toLowerCase())
+        ));
+      }
+
+      // 4. Se a partida já está em andamento (phase !== 'LOBBY') e não achou por ID/nome:
+      // Se houver qualquer jogador humano desconectado na sala, este cliente é esse jogador retornando!
+      if (!existingPlayer && room.phase !== 'LOBBY') {
+        const disconnectedHumans = room.players.filter(p => !p.isBot && (p.disconnected || !p.socketId));
+        if (disconnectedHumans.length > 0) {
+          existingPlayer = disconnectedHumans[0];
+        } else {
+          // Se só houver 1 humano no total na sala (ex: partida com bots):
+          const allHumans = room.players.filter(p => !p.isBot);
+          if (allHumans.length === 1) {
+            existingPlayer = allHumans[0];
+          }
+        }
+      }
+
+      if (existingPlayer) {
+        existingPlayer.socketId = socket.id;
+        existingPlayer.disconnected = false;
+        socket.join(code);
+
+        room.messages.push({
+          id: 'sys_' + Date.now(),
+          senderId: 'SYSTEM',
+          senderName: 'Vila',
+          text: `${existingPlayer.name} reconectou-se ao rebanho!`,
+          timestamp: Date.now(),
+          channel: 'PUBLIC',
+        });
+
+        const payload = {
+          success: true,
+          reconnected: true,
+          roomCode: code,
+          playerId: existingPlayer.id,
+          room: sanitizeRoomForClients(room, existingPlayer.id),
+        };
+
+        socket.emit('room-joined', payload);
+        if (callback) callback(payload);
+        broadcastRoom(room);
         return;
       }
 
@@ -402,7 +471,21 @@ async function startServer() {
         return;
       }
 
-      const player = room.players.find(p => p.id === data.playerId);
+      const reqId = (data?.playerId || '').trim();
+      let player = reqId ? room.players.find(p => p.id === reqId || p.id.toLowerCase() === reqId.toLowerCase()) : undefined;
+
+      if (!player) {
+        const disconnectedHumans = room.players.filter(p => !p.isBot && (p.disconnected || !p.socketId));
+        if (disconnectedHumans.length > 0) {
+          player = disconnectedHumans[0];
+        } else {
+          const allHumans = room.players.filter(p => !p.isBot);
+          if (allHumans.length === 1) {
+            player = allHumans[0];
+          }
+        }
+      }
+
       if (!player) {
         const err = { error: 'Jogador não encontrado na sala.' };
         if (callback) callback({ success: false, ...err });
@@ -625,28 +708,58 @@ async function startServer() {
       if (callback) callback({ success: true, room: sanitizeRoomForClients(room) });
     });
 
-    // D) Sair da Sala / Desconexão
-    const handleLeave = () => {
+    // D) Sair da Sala Voluntariamente (leave-room) vs Desconexão Passiva (disconnect)
+    const handleVoluntaryLeave = () => {
       for (const [code, room] of rooms.entries()) {
         const playerIndex = room.players.findIndex(p => p.socketId === socket.id);
         if (playerIndex !== -1) {
           const leavingPlayer = room.players[playerIndex];
-          room.players.splice(playerIndex, 1);
           socket.leave(code);
 
-          // Se a sala ficou vazia, remover
-          if (room.players.length === 0) {
+          // Se estiver no LOBBY, remove o jogador da lista
+          // Se já estiver em partida, marca apenas como desconectado (mantém status de vida para reconexão)
+          if (room.phase === 'LOBBY') {
+            room.players.splice(playerIndex, 1);
+          } else {
+            leavingPlayer.disconnected = true;
+            leavingPlayer.socketId = undefined;
+          }
+
+          // Se todos os humanos saíram, remover sala
+          const remainingLivingHumans = room.players.filter(p => !p.isBot && !p.disconnected);
+          if (remainingLivingHumans.length === 0 && room.phase === 'LOBBY') {
             rooms.delete(code);
             console.log(`[Socket.IO] Sala ${code} deletada por estar vazia.`);
             return;
           }
 
-          // Se o host saiu, migrar para o próximo jogador humano ou primeiro da lista
+          // Se o anfitrião saiu da sala, sortear novo anfitrião aleatoriamente
           if (room.hostId === leavingPlayer.id) {
-            const nextHost = room.players.find(p => !p.isBot) || room.players[0];
+            const availableOnlineHumans = room.players.filter(p => !p.isBot && p.id !== leavingPlayer.id && !p.disconnected);
+            let nextHost: Player | undefined;
+            if (availableOnlineHumans.length > 0) {
+              const randomIndex = Math.floor(Math.random() * availableOnlineHumans.length);
+              nextHost = availableOnlineHumans[randomIndex];
+            } else {
+              const anyHuman = room.players.filter(p => !p.isBot && p.id !== leavingPlayer.id);
+              if (anyHuman.length > 0) {
+                nextHost = anyHuman[Math.floor(Math.random() * anyHuman.length)];
+              }
+            }
+
             if (nextHost) {
               room.hostId = nextHost.id;
-              nextHost.isHost = true;
+              room.players.forEach(p => {
+                p.isHost = p.id === nextHost!.id;
+              });
+              room.messages.push({
+                id: 'sys_' + Date.now(),
+                senderId: 'SYSTEM',
+                senderName: 'Vila',
+                text: `${leavingPlayer.name} (Anfitrião) saiu da sala. O irmão ${nextHost.name} foi sorteado aleatoriamente como o novo anfitrião!`,
+                timestamp: Date.now(),
+                channel: 'PUBLIC',
+              });
             }
           }
 
@@ -654,7 +767,7 @@ async function startServer() {
             id: 'sys_' + Date.now(),
             senderId: 'SYSTEM',
             senderName: 'Vila',
-            text: `${leavingPlayer.name} deixou o rebanho.`,
+            text: `${leavingPlayer.name} desconectou-se da partida.`,
             timestamp: Date.now(),
             channel: 'PUBLIC',
           });
@@ -665,8 +778,25 @@ async function startServer() {
       }
     };
 
-    socket.on('leave-room', handleLeave);
-    socket.on('disconnect', handleLeave);
+    // Desconexão passiva (queda de sinal / fechar aba sem querer)
+    // NÃO remove o jogador da partida em andamento para permitir reconexão!
+    const handlePassiveDisconnect = () => {
+      for (const [code, room] of rooms.entries()) {
+        const player = room.players.find(p => p.socketId === socket.id);
+        if (player) {
+          player.socketId = undefined;
+          player.disconnected = true;
+          console.log(`[Socket.IO] Jogador ${player.name} desconectou-se temporariamente da sala ${code}.`);
+
+          // Notifica os outros membros mas preserva o jogador na sala
+          broadcastRoom(room);
+          break;
+        }
+      }
+    };
+
+    socket.on('leave-room', handleVoluntaryLeave);
+    socket.on('disconnect', handlePassiveDisconnect);
   });
 
   // ==========================================================================
@@ -754,8 +884,9 @@ async function startServer() {
   app.post('/api/rooms/:code/join', (req: Request, res: Response) => {
     const code = req.params.code.toUpperCase();
     const playerName = (req.body.playerName || '').trim();
+    const reqPlayerId = (req.body.playerId || '').trim();
 
-    if (!playerName) {
+    if (!playerName && !reqPlayerId) {
       return res.status(400).json({ error: 'Por favor, escolha seu nome de jogador antes de entrar na sala.' });
     }
 
@@ -765,8 +896,66 @@ async function startServer() {
       return res.status(404).json({ error: 'Sala não encontrada. Verifique o código.' });
     }
 
+    // Tentar reconexão com jogador existente de forma inteligente
+    const cleanPlayerName = playerName.toLowerCase().trim();
+    let existingPlayer: Player | undefined;
+
+    // 1. Por ID exato ou case-insensitive
+    if (reqPlayerId) {
+      existingPlayer = room.players.find(p => p.id === reqPlayerId || p.id.toLowerCase() === reqPlayerId.toLowerCase());
+    }
+
+    // 2. Por nome do jogador (não-bot)
+    if (!existingPlayer && cleanPlayerName) {
+      existingPlayer = room.players.find(p => !p.isBot && p.name.trim().toLowerCase() === cleanPlayerName);
+    }
+
+    // 3. Por correspondência parcial de nome
+    if (!existingPlayer && cleanPlayerName && cleanPlayerName.length >= 2) {
+      existingPlayer = room.players.find(p => !p.isBot && (
+        p.name.trim().toLowerCase().startsWith(cleanPlayerName) ||
+        cleanPlayerName.startsWith(p.name.trim().toLowerCase())
+      ));
+    }
+
+    // 4. Se a partida já está em andamento (phase !== 'LOBBY') e não achou por ID/nome:
+    if (!existingPlayer && room.phase !== 'LOBBY') {
+      const disconnectedHumans = room.players.filter(p => !p.isBot && (p.disconnected || !p.socketId));
+      if (disconnectedHumans.length > 0) {
+        existingPlayer = disconnectedHumans[0];
+      } else {
+        const allHumans = room.players.filter(p => !p.isBot);
+        if (allHumans.length === 1) {
+          existingPlayer = allHumans[0];
+        }
+      }
+    }
+
+    if (existingPlayer) {
+      existingPlayer.disconnected = false;
+
+      room.messages.push({
+        id: 'sys_' + Date.now(),
+        senderId: 'SYSTEM',
+        senderName: 'Vila',
+        text: `${existingPlayer.name} reconectou-se ao rebanho!`,
+        timestamp: Date.now(),
+        channel: 'PUBLIC',
+      });
+
+      broadcastRoom(room);
+
+      return res.json({
+        success: true,
+        reconnected: true,
+        roomCode: code,
+        playerId: existingPlayer.id,
+        room: sanitizeRoomForClients(room, existingPlayer.id),
+      });
+    }
+
     if (room.phase !== 'LOBBY') {
-      return res.status(400).json({ error: 'A partida já começou nesta sala.' });
+      return res.status(400).json({ error: 'A partida já começou nesta sala e nenhum jogador com esse nome foi encontrado para reconexão.' });
     }
 
     if (room.players.length >= 16) {
@@ -805,8 +994,78 @@ async function startServer() {
       success: true,
       roomCode: code,
       playerId,
-      room: sanitizeRoomForClients(room),
+      room: sanitizeRoomForClients(room, playerId),
     });
+  });
+
+  // Sair voluntariamente da sala via REST
+  app.post('/api/rooms/:code/leave', (req: Request, res: Response) => {
+    const code = req.params.code.toUpperCase();
+    const { playerId } = req.body;
+    const room = rooms.get(code);
+
+    if (!room) return res.status(404).json({ error: 'Sala inexistente' });
+
+    const playerIndex = room.players.findIndex(p => p.id === playerId);
+    if (playerIndex === -1) {
+      return res.json({ success: true });
+    }
+
+    const leavingPlayer = room.players[playerIndex];
+
+    if (room.phase === 'LOBBY') {
+      room.players.splice(playerIndex, 1);
+    } else {
+      leavingPlayer.disconnected = true;
+    }
+
+    // Se o host saiu, migrar para outro online
+    if (room.hostId === leavingPlayer.id) {
+      const availableOnlineHumans = room.players.filter(p => !p.isBot && p.id !== leavingPlayer.id && !p.disconnected);
+      let nextHost: Player | undefined;
+      if (availableOnlineHumans.length > 0) {
+        const randomIndex = Math.floor(Math.random() * availableOnlineHumans.length);
+        nextHost = availableOnlineHumans[randomIndex];
+      } else {
+        const anyHuman = room.players.filter(p => !p.isBot && p.id !== leavingPlayer.id);
+        if (anyHuman.length > 0) {
+          nextHost = anyHuman[Math.floor(Math.random() * anyHuman.length)];
+        }
+      }
+
+      if (nextHost) {
+        room.hostId = nextHost.id;
+        room.players.forEach(p => {
+          p.isHost = p.id === nextHost!.id;
+        });
+        room.messages.push({
+          id: 'sys_' + Date.now(),
+          senderId: 'SYSTEM',
+          senderName: 'Vila',
+          text: `${leavingPlayer.name} (Anfitrião) saiu da sala. O irmão ${nextHost.name} foi sorteado aleatoriamente como o novo anfitrião!`,
+          timestamp: Date.now(),
+          channel: 'PUBLIC',
+        });
+      }
+    }
+
+    room.messages.push({
+      id: 'sys_' + Date.now(),
+      senderId: 'SYSTEM',
+      senderName: 'Vila',
+      text: `${leavingPlayer.name} desconectou-se da partida.`,
+      timestamp: Date.now(),
+      channel: 'PUBLIC',
+    });
+
+    const remainingHumans = room.players.filter(p => !p.isBot && !p.disconnected);
+    if (remainingHumans.length === 0 && room.phase === 'LOBBY') {
+      rooms.delete(code);
+    } else {
+      broadcastRoom(room);
+    }
+
+    res.json({ success: true });
   });
 
   // Adicionar bots
@@ -1089,6 +1348,16 @@ async function startServer() {
         return res.status(400).json({ error: 'Alvo inválido ou eliminado.' });
       }
 
+      // Restrição Soldado: Não pode atacar a si mesmo nem companheiros soldados
+      if (player.role === 'SOLDADO') {
+        if (target.id === player.id) {
+          return res.status(400).json({ error: 'O Soldado não pode eliminar a si mesmo.' });
+        }
+        if (target.team === 'SOLDADOS') {
+          return res.status(400).json({ error: 'O Soldado não pode atacar um companheiro soldado.' });
+        }
+      }
+
       // Restrição Pastor: Não pode proteger a mesma pessoa em duas noites consecutivas
       if (player.role === 'PASTOR') {
         if (!room.config.pastorCanSelfProtect && target.id === player.id) {
@@ -1238,6 +1507,68 @@ async function startServer() {
 
     broadcastRoom(room);
     res.json({ success: true });
+  });
+
+  // Reiniciar o jogo imediatamente com os mesmos jogadores (novos papéis distribuídos)
+  app.post('/api/rooms/:code/restart', (req: Request, res: Response) => {
+    const code = req.params.code.toUpperCase();
+    const { playerId } = req.body;
+    const room = rooms.get(code);
+
+    if (!room) return res.status(404).json({ error: 'Sala inexistente' });
+    if (room.hostId !== playerId) return res.status(403).json({ error: 'Apenas o anfitrião pode reiniciar o jogo.' });
+    if (room.players.length < 5) {
+      return res.status(400).json({ error: 'Mínimo de 5 jogadores necessários para iniciar a partida.' });
+    }
+
+    room.players.forEach(p => {
+      p.isAlive = true;
+      p.prayersReceived = 0;
+      p.converted = false;
+      p.hasActedTonight = false;
+      p.voteTargetId = null;
+      p.nightActionTargetId = null;
+      p.nightActionSecondaryId = null;
+      p.lastInspectionResult = null;
+      p.modifier = null;
+      p.investigationCount = 0;
+      p.spyUsed = false;
+      p.angelUsed = false;
+      p.angelSacrificeTonight = false;
+      p.masterDoubleVotesRemaining = 0;
+      p.usedDoubleVoteThisRound = false;
+      p.lastProtectedId = null;
+      p.hasConfirmedRole = false;
+      p.hasApprovedPhase = false;
+    });
+
+    distributeRoles(room);
+    room.phase = 'ROLE_REVEAL';
+    room.dayNumber = 1;
+    room.winner = null;
+    room.successfulConversionsCount = 0;
+
+    room.logs.push({
+      id: 'log_' + Date.now(),
+      phase: 'ROLE_REVEAL',
+      dayNumber: 1,
+      text: 'Partida reiniciada pelo anfitrião! Novos papéis secretos foram distribuídos.',
+      timestamp: Date.now(),
+      type: 'INFO',
+    });
+
+    room.messages.push({
+      id: 'sys_' + Date.now(),
+      senderId: 'SYSTEM',
+      senderName: 'Vila',
+      text: 'O anfitrião reiniciou a partida! Todos receberam novas cartas e papéis secretos.',
+      timestamp: Date.now(),
+      channel: 'PUBLIC',
+    });
+
+    simulateBotNightActions(room);
+    broadcastRoom(room);
+    res.json({ success: true, room: sanitizeRoomForClients(room) });
   });
 
   // Integração com Vite e Arquivos Estáticos em Produção

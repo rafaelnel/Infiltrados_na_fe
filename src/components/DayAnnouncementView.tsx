@@ -25,8 +25,11 @@ export const DayAnnouncementView: React.FC<Props> = ({
   const conversionLog = nightLogs.find(l => l.type === 'CONVERSION');
   const protectionLog = nightLogs.find(l => l.text.includes('Pastor') || l.text.includes('salvou') || l.text.includes('protegeu'));
 
+  const [hasConfirmed, setHasConfirmed] = React.useState(false);
+
   const handleProceed = () => {
     sounds.playClick();
+    setHasConfirmed(true);
     onProceedToDiscussion();
   };
 
@@ -92,10 +95,15 @@ export const DayAnnouncementView: React.FC<Props> = ({
       {/* Proceed Button */}
       <button
         onClick={handleProceed}
-        className="w-full py-3.5 bg-black text-white rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800"
+        disabled={hasConfirmed}
+        className={`w-full py-3.5 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-all shadow-md ${
+          hasConfirmed
+            ? 'bg-emerald-600 text-white border-2 border-emerald-700 shadow-emerald-950/40'
+            : 'bg-black text-white hover:bg-neutral-800'
+        }`}
       >
         <FourPointStar size={14} />
-        <span>REUNIR CONGREGAÇÃO PARA O DEBATE</span>
+        <span>{hasConfirmed ? '✓ CONFIRMADO — REUNINDO REBANHO...' : 'REUNIR CONGREGAÇÃO PARA O DEBATE'}</span>
         <FourPointStar size={14} />
       </button>
     </div>
