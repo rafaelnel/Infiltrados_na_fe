@@ -92,18 +92,49 @@ export default function App() {
   const [modalCode, setModalCode] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
 
-  // Sessão ativa salva para reconexão em caso de fechamento acidental
-  const [savedOnlineRoom, setSavedOnlineRoom] = useState<{ code: string; playerId: string; name: string } | null>(() => {
+  // Sessão ativa salva para reconexão em caso de fechamento acidental (válida estritamente por 5 minutos)
+  const [savedOnlineRoom, setSavedOnlineRoom] = useState<{ code: string; playerId: string; name: string; savedAt: number } | null>(() => {
     try {
       const code = localStorage.getItem('online_room_code');
       const pId = localStorage.getItem('online_player_id');
       const name = localStorage.getItem('online_player_name');
+      const savedAtStr = localStorage.getItem('online_room_saved_at');
+      const savedAt = savedAtStr ? Number(savedAtStr) : 0;
+      // Se não tiver timestamp salvo ou tiver mais de 5 minutos (300.000 ms), expira imediatamente e não exibe o aviso
+      if (!savedAt || Date.now() - savedAt >= 5 * 60 * 1000) {
+        localStorage.removeItem('online_room_code');
+        localStorage.removeItem('online_player_id');
+        localStorage.removeItem('online_player_name');
+        localStorage.removeItem('online_room_saved_at');
+        return null;
+      }
       if (code && pId) {
-        return { code, playerId: pId, name: name || '' };
+        return { code, playerId: pId, name: name || '', savedAt };
       }
     } catch {}
     return null;
   });
+
+  const clearOnlineSession = () => {
+    try {
+      localStorage.removeItem('online_room_code');
+      localStorage.removeItem('online_player_id');
+      localStorage.removeItem('online_player_name');
+      localStorage.removeItem('online_room_saved_at');
+    } catch {}
+    setSavedOnlineRoom(null);
+  };
+
+  const saveOnlineSession = (code: string, pId: string, name: string) => {
+    try {
+      const now = Date.now();
+      localStorage.setItem('online_room_code', code);
+      localStorage.setItem('online_player_id', pId);
+      localStorage.setItem('online_player_name', name);
+      localStorage.setItem('online_room_saved_at', now.toString());
+      setSavedOnlineRoom({ code, playerId: pId, name, savedAt: now });
+    } catch {}
+  };
 
   // URL do Servidor Backend salva permanentemente (https://infiltrados-na-fe.onrender.com)
   const [serverUrl] = useState<string>(() => {
@@ -177,6 +208,34 @@ export default function App() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  // Monitora a expiração rigorosa de 5 minutos e verifica com o servidor se a sala ainda existe
+  useEffect(() => {
+    if (mode !== 'ENTRY' || !savedOnlineRoom) return;
+
+    const checkExpiration = () => {
+      if (!savedOnlineRoom.savedAt || Date.now() - savedOnlineRoom.savedAt >= 5 * 60 * 1000) {
+        clearOnlineSession();
+      }
+    };
+
+    checkExpiration();
+    const interval = setInterval(checkExpiration, 2000);
+
+    // Consulta o servidor: se a sala foi encerrada por inatividade (5 min sem pessoas) ou não existe mais, remove o aviso imediatamente
+    apiFetch(`/api/rooms/${savedOnlineRoom.code}?playerId=${savedOnlineRoom.playerId}`)
+      .then(res => {
+        if (!res || res.error) {
+          clearOnlineSession();
+        }
+      })
+      .catch(() => {
+        // Sala inexistente ou encerrada por inatividade no backend
+        clearOnlineSession();
+      });
+
+    return () => clearInterval(interval);
+  }, [mode, savedOnlineRoom]);
 
   // Solo mode state
   const [soloGame, setSoloGame] = useState<LocalGameState | null>(null);
@@ -474,12 +533,7 @@ export default function App() {
             setRevealedResultDay(null);
             setIsCreateRoomModalOpen(false);
             sounds.playClick();
-            try {
-              localStorage.setItem('online_room_code', res.room.code);
-              localStorage.setItem('online_player_id', res.playerId);
-              localStorage.setItem('online_player_name', host);
-              setSavedOnlineRoom({ code: res.room.code, playerId: res.playerId, name: host });
-            } catch {}
+            saveOnlineSession(res.room.code, res.playerId, host);
           } else {
             fallbackRestCreate(host);
           }
@@ -506,12 +560,7 @@ export default function App() {
     setRevealedResultDay(null);
     setIsCreateRoomModalOpen(false);
     sounds.playClick();
-    try {
-      localStorage.setItem('online_room_code', data.roomCode);
-      localStorage.setItem('online_player_id', data.playerId);
-      localStorage.setItem('online_player_name', host);
-      setSavedOnlineRoom({ code: data.roomCode, playerId: data.playerId, name: host });
-    } catch {}
+    saveOnlineSession(data.roomCode, data.playerId, host);
     setupSSE(data.roomCode, data.playerId);
   };
 
@@ -551,14 +600,17 @@ export default function App() {
               setRevealedResultDay(null);
               setIsJoinRoomModalOpen(false);
               sounds.playClick();
-              try {
-                localStorage.setItem('online_room_code', cleanCode);
-                localStorage.setItem('online_player_id', res.playerId);
-                localStorage.setItem('online_player_name', name || res.room?.self?.name || '');
-                setSavedOnlineRoom({ code: cleanCode, playerId: res.playerId, name: name || res.room?.self?.name || '' });
-              } catch {}
+              saveOnlineSession(cleanCode, res.playerId, name || res.room?.self?.name || '');
             } else {
               const msg = res?.error || res?.message || 'Erro ao entrar na sala.';
+              if (
+                msg.toLowerCase().includes('inatividade') ||
+                msg.toLowerCase().includes('não encontrada') ||
+                msg.toLowerCase().includes('encerrada') ||
+                msg.toLowerCase().includes('inexistente')
+              ) {
+                clearOnlineSession();
+              }
               setErrorMessage(msg);
               setModalError(msg);
             }
@@ -577,17 +629,22 @@ export default function App() {
         setRevealedResultDay(null);
         setIsJoinRoomModalOpen(false);
         sounds.playClick();
-        try {
-          localStorage.setItem('online_room_code', cleanCode);
-          localStorage.setItem('online_player_id', data.playerId);
-          localStorage.setItem('online_player_name', name || data.room?.self?.name || '');
-          setSavedOnlineRoom({ code: cleanCode, playerId: data.playerId, name: name || data.room?.self?.name || '' });
-        } catch {}
+        saveOnlineSession(cleanCode, data.playerId, name || data.room?.self?.name || '');
         setupSSE(data.roomCode, data.playerId);
       }
     } catch (err: any) {
-      setErrorMessage(err.message);
-      setModalError(err.message);
+      const msg = err?.message || 'Erro ao entrar na sala.';
+      if (
+        msg.toLowerCase().includes('inatividade') ||
+        msg.toLowerCase().includes('não encontrada') ||
+        msg.toLowerCase().includes('encerrada') ||
+        msg.toLowerCase().includes('inexistente') ||
+        msg.includes('404')
+      ) {
+        clearOnlineSession();
+      }
+      setErrorMessage(msg);
+      setModalError(msg);
     }
   };
 
@@ -879,14 +936,9 @@ export default function App() {
         body: JSON.stringify({ playerId: myPlayerId }),
       }).catch(() => {});
     } finally {
-      // PRESERVA a sessão no localStorage para permitir que o jogador volte à partida em andamento!
-      try {
-        localStorage.setItem('online_room_code', roomData.code);
-        if (myPlayerId) localStorage.setItem('online_player_id', myPlayerId);
-        const myName = roomData.self?.name || playerName || '';
-        if (myName) localStorage.setItem('online_player_name', myName);
-        setSavedOnlineRoom({ code: roomData.code, playerId: myPlayerId || '', name: myName });
-      } catch {}
+      // PRESERVA a sessão no localStorage para permitir que o jogador volte à partida em andamento (por até 5 min)!
+      const myName = roomData.self?.name || playerName || '';
+      saveOnlineSession(roomData.code, myPlayerId || '', myName);
 
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
@@ -1062,12 +1114,7 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       sounds.playClick();
-                      try {
-                        localStorage.removeItem('online_room_code');
-                        localStorage.removeItem('online_player_id');
-                        localStorage.removeItem('online_player_name');
-                        setSavedOnlineRoom(null);
-                      } catch {}
+                      clearOnlineSession();
                     }}
                     className="py-1.5 px-3 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase text-neutral-600 hover:bg-neutral-100"
                   >

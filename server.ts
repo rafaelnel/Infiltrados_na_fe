@@ -88,15 +88,139 @@ export interface Room {
     modifiersConfig?: ModifiersConfig;
   };
   sseClients: Array<{ res: Response; playerId: string }>;
+  emptySince?: number; // Momento em que a sala ficou sem nenhum humano online
 }
 
 // ----------------------------------------------------------------------------
-// ESTRUTURA DE SALAS EM MEMÓRIA
+// ESTRUTURA DE SALAS EM MEMÓRIA & LIMPEZA AUTOMÁTICA (5 MIN SEM HUMANOS)
 // ----------------------------------------------------------------------------
 const rooms = new Map<string, Room>();
 
+const ROOM_INACTIVITY_LIMIT_MS = 5 * 60 * 1000; // 5 minutos
+
 // Referência global ao servidor Socket.IO
 let globalIo: SocketIOServer | null = null;
+
+// Conta humanos ativos com conexão viva (desconsidera bots e desconectados)
+function getActiveHumansCount(room: Room): number {
+  let count = 0;
+  for (const p of room.players) {
+    if (p.isBot) continue;
+    if (p.disconnected) continue;
+    if (p.socketId) {
+      if (globalIo) {
+        const sock = globalIo.sockets.sockets.get(p.socketId);
+        if (sock && sock.connected) {
+          count++;
+        } else {
+          p.disconnected = true;
+          p.socketId = undefined;
+        }
+      } else {
+        count++;
+      }
+    } else {
+      p.disconnected = true;
+    }
+  }
+  return count;
+}
+
+// Verifica se a sala está inativa há mais de 5 minutos (sem pessoas humanas reais, tirando bots)
+function checkRoomInactivity(room: Room, code: string): boolean {
+  const activeCount = getActiveHumansCount(room);
+  const now = Date.now();
+  if (activeCount === 0) {
+    if (!room.emptySince) {
+      room.emptySince = now;
+    } else if (now - room.emptySince >= ROOM_INACTIVITY_LIMIT_MS) {
+      console.log(`[AutoClean] Sala ${code} encerrada e deletada por inatividade (mais de 5 min sem pessoas online, tirando bots).`);
+      for (const client of room.sseClients) {
+        try { client.res.end(); } catch {}
+      }
+      rooms.delete(code);
+      return true;
+    }
+  } else {
+    room.emptySince = undefined;
+  }
+  return false;
+}
+
+function checkAndCleanEmptyRooms() {
+  for (const [code, room] of rooms.entries()) {
+    checkRoomInactivity(room, code);
+  }
+}
+
+// Executa verificação periódica de inatividade a cada 10 segundos
+setInterval(checkAndCleanEmptyRooms, 10 * 1000);
+
+// Localiza o jogador correto para reconexão inteligente
+function findPlayerForReconnection(
+  room: Room,
+  reqPlayerId?: string,
+  rawPlayerName?: string,
+  currentSocketId?: string
+): Player | undefined {
+  const cleanId = (reqPlayerId || '').trim();
+  const cleanName = (rawPlayerName || '').trim().toLowerCase();
+
+  // 1. Busca por ID exato ou case-insensitive
+  if (cleanId) {
+    const byId = room.players.find(p => p.id === cleanId || p.id.toLowerCase() === cleanId.toLowerCase());
+    if (byId) return byId;
+  }
+
+  // 2. Busca por nome idêntico (não-bot)
+  if (cleanName) {
+    const byName = room.players.find(p => !p.isBot && p.name.trim().toLowerCase() === cleanName);
+    if (byName) return byName;
+  }
+
+  // 3. Busca por correspondência parcial de nome
+  if (cleanName && cleanName.length >= 2) {
+    const byPartialName = room.players.find(p => !p.isBot && (
+      p.name.trim().toLowerCase().startsWith(cleanName) ||
+      cleanName.startsWith(p.name.trim().toLowerCase())
+    ));
+    if (byPartialName) return byPartialName;
+  }
+
+  // 4. Se a partida já está em andamento (phase !== 'LOBBY') ou se o jogador está reconectando:
+  if (room.phase !== 'LOBBY') {
+    // 4.1 Identifica humanos desconectados ou sem socket ativo
+    const disconnectedHumans = room.players.filter(p => {
+      if (p.isBot) return false;
+      if (p.disconnected || !p.socketId) return true;
+      if (currentSocketId && p.socketId === currentSocketId) return true;
+      if (globalIo) {
+        const sock = globalIo.sockets.sockets.get(p.socketId);
+        return !sock || !sock.connected;
+      }
+      return false;
+    });
+
+    if (disconnectedHumans.length > 0) {
+      if (cleanName) {
+        const matched = disconnectedHumans.find(p =>
+          p.name.trim().toLowerCase().includes(cleanName) ||
+          cleanName.includes(p.name.trim().toLowerCase())
+        );
+        if (matched) return matched;
+      }
+      return disconnectedHumans[0];
+    }
+
+    // 4.2 Se a sala só tem 1 jogador humano no total (jogo de 1 jogador com bots):
+    const allHumans = room.players.filter(p => !p.isBot);
+    if (allHumans.length === 1) {
+      return allHumans[0];
+    }
+  }
+
+  return undefined;
+}
 
 // Função para gerar código único de 5 caracteres alfanuméricos em caixa alta (ex: X7B2K)
 function generateRoomCode(): string {
@@ -336,48 +460,21 @@ async function startServer() {
         return;
       }
 
-      // Verificar se é reconexão de jogador existente (por playerId, playerName ou identificação de humano desconectado)
-      const reqPlayerId = (data?.playerId || '').trim();
-      const cleanPlayerName = playerName.toLowerCase().trim();
-
-      let existingPlayer: Player | undefined;
-
-      // 1. Por ID exato ou case-insensitive
-      if (reqPlayerId) {
-        existingPlayer = room.players.find(p => p.id === reqPlayerId || p.id.toLowerCase() === reqPlayerId.toLowerCase());
+      // Se a sala estiver sem humanos por mais de 5 minutos, fecha automaticamente
+      if (checkRoomInactivity(room, code)) {
+        const err = { error: 'Esta sala foi encerrada por inatividade (mais de 5 minutos sem jogadores online).' };
+        socket.emit('join-error', err);
+        if (callback) callback({ success: false, ...err });
+        return;
       }
 
-      // 2. Por nome do jogador (não-bot)
-      if (!existingPlayer && cleanPlayerName) {
-        existingPlayer = room.players.find(p => !p.isBot && p.name.trim().toLowerCase() === cleanPlayerName);
-      }
-
-      // 3. Por correspondência de nome começando igual
-      if (!existingPlayer && cleanPlayerName && cleanPlayerName.length >= 2) {
-        existingPlayer = room.players.find(p => !p.isBot && (
-          p.name.trim().toLowerCase().startsWith(cleanPlayerName) ||
-          cleanPlayerName.startsWith(p.name.trim().toLowerCase())
-        ));
-      }
-
-      // 4. Se a partida já está em andamento (phase !== 'LOBBY') e não achou por ID/nome:
-      // Se houver qualquer jogador humano desconectado na sala, este cliente é esse jogador retornando!
-      if (!existingPlayer && room.phase !== 'LOBBY') {
-        const disconnectedHumans = room.players.filter(p => !p.isBot && (p.disconnected || !p.socketId));
-        if (disconnectedHumans.length > 0) {
-          existingPlayer = disconnectedHumans[0];
-        } else {
-          // Se só houver 1 humano no total na sala (ex: partida com bots):
-          const allHumans = room.players.filter(p => !p.isBot);
-          if (allHumans.length === 1) {
-            existingPlayer = allHumans[0];
-          }
-        }
-      }
+      // Verificar se é reconexão de jogador existente (inteligente e à prova de falhas)
+      const existingPlayer = findPlayerForReconnection(room, data?.playerId, playerName, socket.id);
 
       if (existingPlayer) {
         existingPlayer.socketId = socket.id;
         existingPlayer.disconnected = false;
+        room.emptySince = undefined; // Retomou com jogador humano ativo
         socket.join(code);
 
         room.messages.push({
@@ -404,9 +501,16 @@ async function startServer() {
       }
 
       if (room.phase !== 'LOBBY') {
-        const err = { error: 'A partida nesta sala já está em andamento.' };
+        const err = { error: 'A partida nesta sala já está em andamento com outros jogadores.' };
         socket.emit('join-error', err);
-        if (callback) callback(err);
+        if (callback) callback({ success: false, ...err });
+        return;
+      }
+
+      if (!playerName) {
+        const err = { error: 'Por favor, escolha seu nome de jogador antes de entrar na sala.' };
+        socket.emit('join-error', err);
+        if (callback) callback({ success: false, ...err });
         return;
       }
 
@@ -471,20 +575,14 @@ async function startServer() {
         return;
       }
 
-      const reqId = (data?.playerId || '').trim();
-      let player = reqId ? room.players.find(p => p.id === reqId || p.id.toLowerCase() === reqId.toLowerCase()) : undefined;
-
-      if (!player) {
-        const disconnectedHumans = room.players.filter(p => !p.isBot && (p.disconnected || !p.socketId));
-        if (disconnectedHumans.length > 0) {
-          player = disconnectedHumans[0];
-        } else {
-          const allHumans = room.players.filter(p => !p.isBot);
-          if (allHumans.length === 1) {
-            player = allHumans[0];
-          }
-        }
+      // Se a sala estiver sem humanos por mais de 5 minutos, fecha automaticamente
+      if (checkRoomInactivity(room, code)) {
+        const err = { error: 'Esta sala foi encerrada por inatividade (mais de 5 minutos sem jogadores online).' };
+        if (callback) callback({ success: false, ...err });
+        return;
       }
+
+      const player = findPlayerForReconnection(room, data?.playerId, undefined, socket.id);
 
       if (!player) {
         const err = { error: 'Jogador não encontrado na sala.' };
@@ -493,6 +591,8 @@ async function startServer() {
       }
 
       player.socketId = socket.id;
+      player.disconnected = false;
+      room.emptySince = undefined; // Retomou com humano ativo
       socket.join(code);
 
       const sanitized = sanitizeRoomForClients(room, player.id);
@@ -725,12 +825,16 @@ async function startServer() {
             leavingPlayer.socketId = undefined;
           }
 
-          // Se todos os humanos saíram, remover sala
+          // Se todos os humanos saíram / desconectaram
           const remainingLivingHumans = room.players.filter(p => !p.isBot && !p.disconnected);
-          if (remainingLivingHumans.length === 0 && room.phase === 'LOBBY') {
-            rooms.delete(code);
-            console.log(`[Socket.IO] Sala ${code} deletada por estar vazia.`);
-            return;
+          if (remainingLivingHumans.length === 0) {
+            if (room.phase === 'LOBBY') {
+              rooms.delete(code);
+              console.log(`[Socket.IO] Sala ${code} deletada por estar vazia.`);
+              return;
+            } else if (!room.emptySince) {
+              room.emptySince = Date.now();
+            }
           }
 
           // Se o anfitrião saiu da sala, sortear novo anfitrião aleatoriamente
@@ -787,6 +891,11 @@ async function startServer() {
           player.socketId = undefined;
           player.disconnected = true;
           console.log(`[Socket.IO] Jogador ${player.name} desconectou-se temporariamente da sala ${code}.`);
+
+          const remainingLivingHumans = room.players.filter(p => !p.isBot && !p.disconnected);
+          if (remainingLivingHumans.length === 0 && !room.emptySince) {
+            room.emptySince = Date.now();
+          }
 
           // Notifica os outros membros mas preserva o jogador na sala
           broadcastRoom(room);
@@ -896,43 +1005,17 @@ async function startServer() {
       return res.status(404).json({ error: 'Sala não encontrada. Verifique o código.' });
     }
 
+    // Se a sala estiver sem humanos por mais de 5 minutos, fecha automaticamente
+    if (checkRoomInactivity(room, code)) {
+      return res.status(404).json({ error: 'Esta sala foi encerrada por inatividade (mais de 5 minutos sem jogadores online).' });
+    }
+
     // Tentar reconexão com jogador existente de forma inteligente
-    const cleanPlayerName = playerName.toLowerCase().trim();
-    let existingPlayer: Player | undefined;
-
-    // 1. Por ID exato ou case-insensitive
-    if (reqPlayerId) {
-      existingPlayer = room.players.find(p => p.id === reqPlayerId || p.id.toLowerCase() === reqPlayerId.toLowerCase());
-    }
-
-    // 2. Por nome do jogador (não-bot)
-    if (!existingPlayer && cleanPlayerName) {
-      existingPlayer = room.players.find(p => !p.isBot && p.name.trim().toLowerCase() === cleanPlayerName);
-    }
-
-    // 3. Por correspondência parcial de nome
-    if (!existingPlayer && cleanPlayerName && cleanPlayerName.length >= 2) {
-      existingPlayer = room.players.find(p => !p.isBot && (
-        p.name.trim().toLowerCase().startsWith(cleanPlayerName) ||
-        cleanPlayerName.startsWith(p.name.trim().toLowerCase())
-      ));
-    }
-
-    // 4. Se a partida já está em andamento (phase !== 'LOBBY') e não achou por ID/nome:
-    if (!existingPlayer && room.phase !== 'LOBBY') {
-      const disconnectedHumans = room.players.filter(p => !p.isBot && (p.disconnected || !p.socketId));
-      if (disconnectedHumans.length > 0) {
-        existingPlayer = disconnectedHumans[0];
-      } else {
-        const allHumans = room.players.filter(p => !p.isBot);
-        if (allHumans.length === 1) {
-          existingPlayer = allHumans[0];
-        }
-      }
-    }
+    const existingPlayer = findPlayerForReconnection(room, reqPlayerId, playerName);
 
     if (existingPlayer) {
       existingPlayer.disconnected = false;
+      room.emptySince = undefined; // Retomou com humano ativo
 
       room.messages.push({
         id: 'sys_' + Date.now(),
@@ -956,6 +1039,10 @@ async function startServer() {
 
     if (room.phase !== 'LOBBY') {
       return res.status(400).json({ error: 'A partida já começou nesta sala e nenhum jogador com esse nome foi encontrado para reconexão.' });
+    }
+
+    if (!playerName) {
+      return res.status(400).json({ error: 'Por favor, escolha seu nome de jogador antes de entrar na sala.' });
     }
 
     if (room.players.length >= 16) {
@@ -1059,8 +1146,12 @@ async function startServer() {
     });
 
     const remainingHumans = room.players.filter(p => !p.isBot && !p.disconnected);
-    if (remainingHumans.length === 0 && room.phase === 'LOBBY') {
-      rooms.delete(code);
+    if (remainingHumans.length === 0) {
+      if (room.phase === 'LOBBY') {
+        rooms.delete(code);
+      } else if (!room.emptySince) {
+        room.emptySince = Date.now();
+      }
     } else {
       broadcastRoom(room);
     }
@@ -1142,6 +1233,11 @@ async function startServer() {
 
     if (!room) {
       return res.status(404).json({ error: 'Sala não encontrada' });
+    }
+
+    // Se a sala estiver sem humanos por mais de 5 minutos, fecha automaticamente
+    if (checkRoomInactivity(room, code)) {
+      return res.status(404).json({ error: 'Sala encerrada por inatividade (mais de 5 minutos sem jogadores).' });
     }
 
     const player = room.players.find(p => p.id === playerId);
