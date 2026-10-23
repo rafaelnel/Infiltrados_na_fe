@@ -158,6 +158,7 @@ export interface Player {
   id: string;
   name: string;
   color?: string;
+  avatar?: string;
   role: Role;
   team: Team;
   isAlive: boolean;

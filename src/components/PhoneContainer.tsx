@@ -1,6 +1,7 @@
 import React from 'react';
 import { Volume2, VolumeX, BookOpen, Moon, Sun, Settings, LogOut } from 'lucide-react';
 import { sounds } from '../utils/audio';
+import { PWAInstallButton } from '../PWAInstallButton';
 
 interface Props {
   children: React.ReactNode;
@@ -100,6 +101,9 @@ export const PhoneContainer: React.FC<Props> = ({
                 <span>NOITE ATIVA</span>
               </div>
             )}
+
+            {/* Botão de Baixar / Instalar App PWA */}
+            <PWAInstallButton variant="header" isNight={isNight} />
 
             <button
               onClick={onOpenManual}

@@ -24,6 +24,8 @@ export interface Player {
   id: string;
   socketId?: string;
   name: string;
+  color?: string;
+  avatar?: string;
   role: Role;
   team: Team;
   isAlive: boolean;
@@ -291,6 +293,8 @@ function sanitizeRoomForClients(room: Room, forPlayerId?: string) {
     players: room.players.map(p => ({
       id: p.id,
       name: p.name,
+      color: p.color,
+      avatar: p.avatar,
       isAlive: p.isAlive,
       isHost: p.isHost,
       isBot: p.isBot,
@@ -1416,6 +1420,23 @@ async function startServer() {
     room.messages.push(newMsg);
     broadcastRoom(room);
     res.json({ success: true, message: newMsg });
+  });
+
+  // Atualizar avatar e cor do jogador
+  app.post('/api/rooms/:code/profile', (req: Request, res: Response) => {
+    const code = req.params.code.toUpperCase();
+    const { playerId, color, avatar } = req.body;
+    const room = rooms.get(code);
+
+    if (!room) return res.status(404).json({ error: 'Sala inexistente' });
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return res.status(404).json({ error: 'Jogador não encontrado' });
+
+    if (color) player.color = color;
+    if (avatar) player.avatar = avatar;
+
+    broadcastRoom(room);
+    res.json({ success: true, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Ação noturna

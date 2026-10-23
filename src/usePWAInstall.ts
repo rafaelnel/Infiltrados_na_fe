@@ -9,21 +9,40 @@ export function usePWAInstall() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
+  const [browserType, setBrowserType] = useState<'chrome' | 'safari' | 'firefox' | 'edge' | 'other'>('chrome');
 
   useEffect(() => {
-    // Detecta se a aplicação já está rodando instalada (modo standalone)
+    // 1. Detecta se a aplicação já está rodando em modo standalone (já instalada)
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true;
     setIsInstalled(isStandalone);
 
-    // Detecta se o dispositivo é iOS (Safari não dispara beforeinstallprompt)
-    const userAgent = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(userAgent);
+    // 2. Detecta se está rodando dentro de um iframe (ex: preview do AI Studio)
+    try {
+      setIsInIframe(window.self !== window.top);
+    } catch {
+      setIsInIframe(true);
+    }
+
+    // 3. Detecta sistema operacional e navegador
+    const ua = window.navigator.userAgent.toLowerCase();
+    const isIOSDevice = /iphone|ipad|ipod/.test(ua);
     setIsIOS(isIOSDevice);
 
+    if (isIOSDevice || (/safari/.test(ua) && !/chrome|chromium|edg/.test(ua))) {
+      setBrowserType('safari');
+    } else if (/edg/.test(ua)) {
+      setBrowserType('edge');
+    } else if (/firefox/.test(ua)) {
+      setBrowserType('firefox');
+    } else {
+      setBrowserType('chrome');
+    }
+
+    // 4. Captura o evento nativo de instalação do Chromium
     const handleBeforeInstallPrompt = (e: Event) => {
-      // Impede o banner padrão do navegador caso queira disparar manualmente
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
@@ -42,14 +61,18 @@ export function usePWAInstall() {
     };
   }, []);
 
-  const install = async () => {
+  const install = async (): Promise<boolean> => {
     if (!deferredPrompt) return false;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
-      return true;
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+        setDeferredPrompt(null);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Erro ao disparar prompt de instalação:', err);
     }
     return false;
   };
@@ -58,6 +81,8 @@ export function usePWAInstall() {
     isInstallable: !!deferredPrompt,
     isInstalled,
     isIOS,
+    isInIframe,
+    browserType,
     install,
   };
 }

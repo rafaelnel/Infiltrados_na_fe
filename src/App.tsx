@@ -840,6 +840,30 @@ export default function App() {
     }
   };
 
+  const handleOnlineUpdateProfile = async (avatar: string, color: string) => {
+    if (!roomData || !myPlayerId) return;
+    try {
+      if (socketRef.current && socketRef.current.connected) {
+        socketRef.current.emit('update-profile', {
+          roomCode: roomData.code,
+          playerId: myPlayerId,
+          avatar,
+          color,
+        });
+      }
+      const data = await apiFetch(`/api/rooms/${roomData.code}/profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: myPlayerId, avatar, color }),
+      });
+      if (data?.room) {
+        setRoomData(data.room);
+      }
+    } catch (e: any) {
+      console.warn('Erro ao atualizar perfil:', e);
+    }
+  };
+
   const handleOnlineAdvancePhase = async () => {
     if (!roomData) return;
     try {
@@ -1087,7 +1111,7 @@ export default function App() {
               Vila das Ovelhas vs Soldados Infiltrados
             </p>
             <div className="flex justify-center pt-1">
-              <PWAInstallButton />
+              <PWAInstallButton variant="hero-badge" />
             </div>
           </div>
 
@@ -1161,6 +1185,9 @@ export default function App() {
 
             {/* Main Action Buttons */}
             <div className="space-y-2.5 pt-1">
+              {/* Baixar / Instalar App (PWA) e Link Oficial GitHub Pages */}
+              <PWAInstallButton variant="banner" />
+
               {/* Local Multiplayer Button */}
               <button
                 onClick={() => setIsLocalSetupOpen(true)}
@@ -1866,6 +1893,8 @@ export default function App() {
               setIsLocalSetupOpen(true);
             }}
             onLeaveRoom={handleOnlineLeaveRoom}
+            myPlayerId={myPlayerId}
+            onUpdateProfile={handleOnlineUpdateProfile}
           />
         );
       }

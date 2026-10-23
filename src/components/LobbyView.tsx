@@ -21,6 +21,8 @@ import {
   Sliders,
   LogOut,
   AlertTriangle,
+  Smile,
+  Palette,
 } from 'lucide-react';
 import { getMaxAllowedSoldiers, generateRecommendedDeck } from './LocalPlayersSetupModal';
 
@@ -39,6 +41,8 @@ interface Props {
   ) => void;
   onSwitchToLocalMode: () => void;
   onLeaveRoom?: () => void;
+  myPlayerId?: string;
+  onUpdateProfile?: (avatar: string, color: string) => void;
 }
 
 export const LobbyView: React.FC<Props> = ({
@@ -52,9 +56,12 @@ export const LobbyView: React.FC<Props> = ({
   onStartGame,
   onSwitchToLocalMode,
   onLeaveRoom,
+  myPlayerId,
+  onUpdateProfile,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const [isBotBusy, setIsBotBusy] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
@@ -228,35 +235,64 @@ export const LobbyView: React.FC<Props> = ({
             <Users size={14} />
             <span>Membros Reunidos ({players.length}/16)</span>
           </span>
-          <span className="text-[10px] font-mono text-neutral-500 font-bold">
-            Mínimo: 5 jogadores
-          </span>
+          <button
+            type="button"
+            onClick={() => setShowAvatarModal(true)}
+            className="text-[10px] font-mono bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-colors active:scale-95"
+            title="Escolha seu ícone e cor"
+          >
+            <Smile size={11} />
+            <span>Meu Avatar</span>
+          </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50">
-          {players.map(p => (
-            <div
-              key={p.id}
-              className="p-2 bg-white border border-neutral-300 rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs"
-            >
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="w-2 h-2 rounded-full bg-black"></span>
-                <span className="font-bold truncate">{p.name}</span>
-              </div>
-              <div className="flex items-center gap-1">
-                {p.isHost && (
-                  <span className="text-[9px] bg-black text-white px-1.5 py-0.2 rounded font-mono font-bold">
-                    Host
+        <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50">
+          {players.map(p => {
+            const isMe = p.id === myPlayerId;
+            const defaultAvatar = p.isBot ? '🤖' : (p.isHost ? '👑' : '🐑');
+            const avatar = p.avatar || defaultAvatar;
+            const color = p.color || (p.isBot ? '#9CA3AF' : (p.isHost ? '#F59E0B' : '#6366F1'));
+
+            return (
+              <div
+                key={p.id}
+                onClick={() => {
+                  if (isMe) setShowAvatarModal(true);
+                }}
+                className={`p-2 bg-white border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all ${
+                  isMe ? 'border-2 border-amber-500 cursor-pointer hover:bg-amber-50/50' : 'border-neutral-300'
+                }`}
+                title={isMe ? 'Clique para mudar seu avatar e cor' : undefined}
+              >
+                <div className="flex items-center gap-1.5 truncate">
+                  <span
+                    className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] shrink-0 border border-black/20"
+                    style={{ backgroundColor: `${color}30`, borderColor: color }}
+                  >
+                    {avatar}
                   </span>
-                )}
-                {p.isBot && (
-                  <span className="text-[9px] bg-neutral-200 text-black px-1 rounded font-mono">
-                    Bot
-                  </span>
-                )}
+                  <span className="font-bold truncate text-[11px]">{p.name}</span>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {isMe && (
+                    <span className="text-[8px] bg-amber-500 text-black px-1 rounded font-mono font-black">
+                      Você
+                    </span>
+                  )}
+                  {p.isHost && (
+                    <span className="text-[8px] bg-black text-white px-1 py-0.2 rounded font-mono font-bold">
+                      Host
+                    </span>
+                  )}
+                  {p.isBot && (
+                    <span className="text-[8px] bg-neutral-200 text-black px-1 rounded font-mono">
+                      Bot
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -675,6 +711,141 @@ export const LobbyView: React.FC<Props> = ({
                 <span>Confirmar e Iniciar</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Escolha de Avatar e Cor do Jogador */}
+      {showAvatarModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs animate-fadeIn font-mono">
+          <div className="w-full max-w-sm rounded-3xl bg-white border-3 border-black p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b-2 border-neutral-200">
+              <div className="flex items-center gap-2">
+                <Smile className="w-5 h-5 text-amber-500" />
+                <h3 className="font-sans font-black text-base uppercase text-black">
+                  Personalizar Avatar & Cor
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAvatarModal(false)}
+                className="p-1 rounded-lg text-neutral-500 hover:text-black hover:bg-neutral-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Preview do Avatar Atual */}
+            {(() => {
+              const myPlayer = players.find(p => p.id === myPlayerId);
+              const currentAvatar = myPlayer?.avatar || (myPlayer?.isHost ? '👑' : '🐑');
+              const currentColor = myPlayer?.color || '#F59E0B';
+
+              return (
+                <div className="flex flex-col items-center justify-center p-3 bg-neutral-100 rounded-2xl border border-neutral-300 space-y-1">
+                  <div
+                    className="w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-inner border-2 border-black/30 transition-transform active:scale-95"
+                    style={{ backgroundColor: `${currentColor}35`, borderColor: currentColor }}
+                  >
+                    {currentAvatar}
+                  </div>
+                  <span className="text-xs font-bold text-neutral-800">
+                    {myPlayer?.name || 'Seu Jogador'}
+                  </span>
+                  <span className="text-[10px] text-neutral-500">
+                    Visível para todos os jogadores na sala
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Escolha do Ícone */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] uppercase font-bold text-neutral-600 block">
+                Escolha seu Símbolo Bíblico / Rebanho:
+              </span>
+              <div className="grid grid-cols-6 gap-1.5 p-2 bg-neutral-50 border border-neutral-300 rounded-xl">
+                {['🐑', '🕊️', '🛡️', '⚔️', '👑', '📜', '🕯️', '🌾', '🍇', '📖', '🐟', '🌟'].map(icon => {
+                  const myPlayer = players.find(p => p.id === myPlayerId);
+                  const isSelected = (myPlayer?.avatar || (myPlayer?.isHost ? '👑' : '🐑')) === icon;
+
+                  return (
+                    <button
+                      key={icon}
+                      type="button"
+                      onClick={() => {
+                        sounds.playClick();
+                        const myPlayer = players.find(p => p.id === myPlayerId);
+                        if (onUpdateProfile) {
+                          onUpdateProfile(icon, myPlayer?.color || '#F59E0B');
+                        }
+                      }}
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-transform active:scale-90 ${
+                        isSelected
+                          ? 'bg-amber-400 border-2 border-black shadow-xs scale-105'
+                          : 'bg-white border border-neutral-300 hover:bg-neutral-100'
+                      }`}
+                    >
+                      {icon}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Escolha da Cor */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] uppercase font-bold text-neutral-600 block">
+                Escolha sua Cor de Identificação:
+              </span>
+              <div className="grid grid-cols-8 gap-1.5 p-2 bg-neutral-50 border border-neutral-300 rounded-xl">
+                {[
+                  '#F59E0B',
+                  '#10B981',
+                  '#06B6D4',
+                  '#6366F1',
+                  '#8B5CF6',
+                  '#F43F5E',
+                  '#F97316',
+                  '#1F2937',
+                ].map(hex => {
+                  const myPlayer = players.find(p => p.id === myPlayerId);
+                  const isSelected = (myPlayer?.color || '#F59E0B') === hex;
+
+                  return (
+                    <button
+                      key={hex}
+                      type="button"
+                      onClick={() => {
+                        sounds.playClick();
+                        const myPlayer = players.find(p => p.id === myPlayerId);
+                        const currentAvatar = myPlayer?.avatar || (myPlayer?.isHost ? '👑' : '🐑');
+                        if (onUpdateProfile) {
+                          onUpdateProfile(currentAvatar, hex);
+                        }
+                      }}
+                      className={`w-7 h-7 rounded-full border-2 transition-transform active:scale-90 flex items-center justify-center ${
+                        isSelected ? 'border-black scale-110 shadow-sm' : 'border-white/60 hover:scale-105'
+                      }`}
+                      style={{ backgroundColor: hex }}
+                    >
+                      {isSelected && <Check size={12} className="text-white drop-shadow-xs" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                sounds.playClick();
+                setShowAvatarModal(false);
+              }}
+              className="w-full py-2.5 rounded-xl bg-black text-white text-xs font-bold uppercase hover:bg-neutral-800 transition-colors shadow-xs"
+            >
+              Concluir & Salvar
+            </button>
           </div>
         </div>
       )}

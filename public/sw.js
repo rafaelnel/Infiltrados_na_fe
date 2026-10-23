@@ -1,5 +1,5 @@
 // sw.js - Service Worker para Infiltrado na Fé (PWA)
-const CACHE_NAME = 'infiltrado-na-fe-v1';
+const CACHE_NAME = 'infiltrado-na-fe-v2';
 
 // Recursos essenciais para inicialização do App Shell
 const PRECACHE_ASSETS = [
@@ -9,14 +9,21 @@ const PRECACHE_ASSETS = [
   '/favicon.svg',
   '/pwa-192x192.png',
   '/pwa-512x512.png',
+  '/pwa-maskable-512x512.png',
   '/apple-touch-icon.png'
 ];
 
-// Instalação do Service Worker e cache inicial
+// Instalação do Service Worker e cache inicial resiliente
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
+      return Promise.allSettled(
+        PRECACHE_ASSETS.map((asset) =>
+          cache.add(asset).catch((err) => {
+            console.warn('[PWA SW] Precache tolerante para:', asset, err);
+          })
+        )
+      );
     }).then(() => {
       return self.skipWaiting();
     })
@@ -65,17 +72,19 @@ self.addEventListener('fetch', (event) => {
           });
         })
         .catch(() => {
-          return caches.match('/index.html') || caches.match('/');
+          return caches.match('/index.html').then((matched) => {
+            return matched || caches.match('/');
+          });
         })
     );
     return;
   }
 
-  // Para assets estáticos: Cache-first com atualização de cache em background
+  // Para assets estáticos: Cache-first com atualização em background
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Atualiza silenciosamente em background
+        // Atualiza silenciosamente em background se estiver online
         fetch(event.request)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
