@@ -33,5 +33,21 @@
       "sizes": "any",
       "type": "image/svg+xml"
     }
+  ],
+  "screenshots": [
+    {
+      "src": "./app-cover.png",
+      "sizes": "800x800",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Infiltrado na Fé - Capa Oficial"
+    },
+    {
+      "src": "./screenshot-mobile.png",
+      "sizes": "1080x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Infiltrado na Fé - Capa do Jogo"
+    }
   ]
 }

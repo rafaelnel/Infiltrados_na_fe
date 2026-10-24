@@ -10,7 +10,9 @@ const PRECACHE_ASSETS = [
   '/pwa-192x192.png',
   '/pwa-512x512.png',
   '/pwa-maskable-512x512.png',
-  '/apple-touch-icon.png'
+  '/apple-touch-icon.png',
+  '/app-cover.png',
+  '/screenshot-mobile.png'
 ];
 
 // Instalação do Service Worker e cache inicial resiliente

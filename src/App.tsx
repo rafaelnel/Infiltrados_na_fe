@@ -20,7 +20,6 @@ import { BallotBoxReveal } from './components/BallotBoxReveal';
 import { FourPointStar, SheepIllustration, RoleIllustration } from './components/RoleIllustrations';
 import { sounds } from './utils/audio';
 import { Player, Role, Team, Phase, ChatMessage, GameConfig, RoomState, ModifiersConfig } from './types/game';
-import { PWAInstallButton } from './PWAInstallButton';
 
 const DEFAULT_SERVER_URL = 'https://infiltrados-na-fe.onrender.com';
 import {
@@ -1110,9 +1109,6 @@ export default function App() {
             <p className="text-xs sm:text-sm font-mono font-bold text-neutral-600">
               Vila das Ovelhas vs Soldados Infiltrados
             </p>
-            <div className="flex justify-center pt-1">
-              <PWAInstallButton variant="default" />
-            </div>
           </div>
 
           {/* Hero Doodle */}
@@ -1185,9 +1181,6 @@ export default function App() {
 
             {/* Main Action Buttons */}
             <div className="space-y-2.5 pt-1">
-              {/* Baixar / Instalar App (PWA) e Link Oficial GitHub Pages */}
-              <PWAInstallButton variant="banner" />
-
               {/* Local Multiplayer Button */}
               <button
                 onClick={() => setIsLocalSetupOpen(true)}
