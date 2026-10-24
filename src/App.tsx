@@ -1111,7 +1111,7 @@ export default function App() {
               Vila das Ovelhas vs Soldados Infiltrados
             </p>
             <div className="flex justify-center pt-1">
-              <PWAInstallButton variant="hero-badge" />
+              <PWAInstallButton variant="default" />
             </div>
           </div>
 

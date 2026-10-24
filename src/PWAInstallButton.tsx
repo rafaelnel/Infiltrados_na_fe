@@ -89,15 +89,15 @@ export const PWAInstallButton: React.FC<Props> = ({
           } ${className}`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-400 text-black border-2 border-black flex items-center justify-center shrink-0">
-              <Smartphone size={20} />
+            <div className="w-12 h-12 rounded-xl overflow-hidden border-2 border-black bg-white flex items-center justify-center shrink-0 shadow-xs">
+              <img src="/pwa-192x192.png" alt="Ícone Infiltrado" className="w-full h-full object-cover" />
             </div>
             <div>
               <p className="font-sans font-black text-sm uppercase leading-tight">
                 Instale no seu Celular
               </p>
               <p className="text-[11px] text-neutral-600 dark:text-neutral-300">
-                Abra em tela cheia e acesse direto pela tela inicial sem barra do navegador.
+                Abra em tela cheia e acesse direto pela tela inicial com o ícone da ovelha.
               </p>
             </div>
           </div>
@@ -123,7 +123,7 @@ export const PWAInstallButton: React.FC<Props> = ({
         className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl font-mono text-xs sm:text-sm font-black uppercase tracking-wider border-2 border-black bg-amber-400 hover:bg-amber-300 text-black shadow-[3px_3px_0px_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer ${className}`}
         title="Baixar aplicativo e adicionar à tela inicial"
       >
-        <Download size={16} className="animate-pulse" />
+        <img src="/pwa-192x192.png" alt="" className="w-5 h-5 rounded-md border border-black/40 object-cover" />
         <span>Baixar / Instalar Jogo</span>
       </button>
 
@@ -137,9 +137,9 @@ export const PWAInstallButton: React.FC<Props> = ({
         <div className="w-full max-w-md rounded-3xl bg-neutral-900 border-2 border-neutral-700 p-6 shadow-2xl text-white space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-400 text-black flex items-center justify-center font-bold">
-                <Download size={18} />
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-amber-400 bg-white shadow-md shrink-0">
+                <img src="/pwa-192x192.png" alt="Ícone do Jogo" className="w-full h-full object-cover" />
               </div>
               <div>
                 <h3 className="font-sans font-black text-base text-amber-400 tracking-tight leading-none uppercase">
