@@ -2191,36 +2191,43 @@ export default function App() {
                   Membros Presentes na Assembleia ({livingPlayers.length} vivos):
                 </span>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {localGame.players.map(p => (
-                    <div
-                      key={p.id}
-                      className={`p-2 rounded-xl border text-xs font-mono flex items-center justify-between gap-1.5 ${
-                        p.isAlive ? 'bg-white border-black font-bold' : 'bg-neutral-200 border-neutral-300 text-neutral-500 line-through'
-                      }`}
-                    >
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <PersonAvatar
-                          avatar={p.avatar}
-                          color={p.color || '#F59E0B'}
-                          seed={p.name}
-                          size={24}
-                          className="border border-black shrink-0"
-                        />
-                        <span
-                          className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
-                          style={{ backgroundColor: p.color || '#F59E0B' }}
-                        />
-                        <span className="truncate">{p.name}</span>
-                      </div>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
-                          p.isAlive ? 'bg-black text-white' : 'bg-neutral-300 text-neutral-600'
+                  <AnimatePresence>
+                    {localGame.players.map(p => (
+                      <motion.div
+                        key={p.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.94 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.94 }}
+                        transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+                        className={`p-2 rounded-xl border text-xs font-mono flex items-center justify-between gap-1.5 ${
+                          p.isAlive ? 'bg-white border-black font-bold' : 'bg-neutral-200 border-neutral-300 text-neutral-500 line-through'
                         }`}
                       >
-                        {p.isAlive ? 'Vivo' : 'Exilado'}
-                      </span>
-                    </div>
-                  ))}
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <PersonAvatar
+                            avatar={p.avatar}
+                            color={p.color || '#F59E0B'}
+                            seed={p.name}
+                            size={24}
+                            className="border border-black shrink-0"
+                          />
+                          <span
+                            className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
+                            style={{ backgroundColor: p.color || '#F59E0B' }}
+                          />
+                          <span className="truncate">{p.name}</span>
+                        </div>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                            p.isAlive ? 'bg-black text-white' : 'bg-neutral-300 text-neutral-600'
+                          }`}
+                        >
+                          {p.isAlive ? 'Vivo' : 'Exilado'}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
                 </div>
               </div>
 

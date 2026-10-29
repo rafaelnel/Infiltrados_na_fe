@@ -339,6 +339,7 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
   };
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
+    if (activeTab !== 'draw') return;
     e.preventDefault();
     const pt = getCanvasCoordinates(e);
     if (!pt) return;
@@ -375,7 +376,7 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
   };
 
   const drawMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawingRef.current) return;
+    if (activeTab !== 'draw' || !isDrawingRef.current) return;
     e.preventDefault();
     const pt = getCanvasCoordinates(e);
     if (!pt || !lastPointRef.current) return;
@@ -584,6 +585,21 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
                 boxShadow: `0 8px 24px ${currentColor}40`,
               }}
             >
+              {/* 0. Fundo vetorizado do rosto de segurança (caso o asset image falhe no GitHub Pages) */}
+              <svg viewBox="0 0 200 200" className="absolute inset-0 w-full h-full pointer-events-none select-none" style={{ backgroundColor: '#ffffff' }}>
+                <ellipse cx="100" cy="100" rx="64" ry="76" fill="#fefdfb" stroke="#111111" strokeWidth="4" />
+                <path d="M 72 78 Q 80 73 88 78" fill="none" stroke="#111111" strokeWidth="2.5" strokeLinecap="round" />
+                <path d="M 112 78 Q 120 73 128 78" fill="none" stroke="#111111" strokeWidth="2.5" strokeLinecap="round" />
+                <circle cx="80" cy="95" r="7.5" fill="#111111" />
+                <circle cx="120" cy="95" r="7.5" fill="#111111" />
+                <circle cx="78" cy="93" r="2.2" fill="#ffffff" />
+                <circle cx="118" cy="93" r="2.2" fill="#ffffff" />
+                <path d="M 100 98 Q 97 112 103 115" fill="none" stroke="#111111" strokeWidth="2.2" strokeLinecap="round" />
+                <path d="M 82 132 Q 100 142 118 132" fill="none" stroke="#111111" strokeWidth="2.6" strokeLinecap="round" />
+                <ellipse cx="64" cy="112" rx="7" ry="4" fill="#ff7777" fillOpacity="0.25" />
+                <ellipse cx="136" cy="112" rx="7" ry="4" fill="#ff7777" fillOpacity="0.25" />
+              </svg>
+
               {/* 1. Imagem de fundo: Rosto Base do Jogo */}
               <img
                 src={BASE_FACE_IMAGE}
@@ -603,19 +619,23 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
                 <RenderAccessoriesSVG config={config} color={currentColor} />
               </svg>
 
-              {/* 3. Canvas interativo de desenho livre */}
+              {/* 3. Canvas interativo de desenho livre (ativo apenas na aba Desenhar) */}
               <canvas
                 ref={canvasRef}
                 width={400}
                 height={400}
-                className="absolute inset-0 w-full h-full cursor-crosshair touch-none"
-                onMouseDown={startDrawing}
-                onMouseMove={drawMove}
-                onMouseUp={stopDrawing}
-                onMouseLeave={stopDrawing}
-                onTouchStart={startDrawing}
-                onTouchMove={drawMove}
-                onTouchEnd={stopDrawing}
+                className={`absolute inset-0 w-full h-full touch-none ${
+                  activeTab === 'draw'
+                    ? 'cursor-crosshair pointer-events-auto'
+                    : 'pointer-events-none cursor-default'
+                }`}
+                onMouseDown={activeTab === 'draw' ? startDrawing : undefined}
+                onMouseMove={activeTab === 'draw' ? drawMove : undefined}
+                onMouseUp={activeTab === 'draw' ? stopDrawing : undefined}
+                onMouseLeave={activeTab === 'draw' ? stopDrawing : undefined}
+                onTouchStart={activeTab === 'draw' ? startDrawing : undefined}
+                onTouchMove={activeTab === 'draw' ? drawMove : undefined}
+                onTouchEnd={activeTab === 'draw' ? stopDrawing : undefined}
               />
 
               {/* Distintivo de Nome & Cor no topo */}

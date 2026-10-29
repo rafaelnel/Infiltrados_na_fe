@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Player, GameConfig, Role, ROLES_METADATA, ModifiersConfig } from '../types/game';
 import { sounds } from '../utils/audio';
 import { FourPointStar, SheepIllustration, RoleIllustration } from './RoleIllustrations';
@@ -390,8 +391,13 @@ export const LobbyView: React.FC<Props> = ({
           <div className="flex items-center justify-between p-2 bg-neutral-50 border-2 border-black rounded-2xl text-xs font-mono">
             <div className="flex items-center gap-1.5 overflow-x-auto max-w-[230px] sm:max-w-xs py-0.5">
               {players.map(p => (
-                <span
+                <motion.span
                   key={p.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 300 }}
                   title={`${p.name} ${p.isHost ? '(Host)' : ''}`}
                   className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 flex items-center gap-1 ${
                     p.id === activePlayer.id
@@ -407,7 +413,7 @@ export const LobbyView: React.FC<Props> = ({
                     className="border border-black/30 shrink-0"
                   />
                   <span>{p.name}</span>
-                </span>
+                </motion.span>
               ))}
             </div>
 
@@ -439,8 +445,13 @@ export const LobbyView: React.FC<Props> = ({
               const isMe = p.id === activePlayer.id;
 
               return (
-                <div
+                <motion.div
                   key={p.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.94, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.94, y: -8 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 300 }}
                   className={`p-2 bg-white border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all ${
                     isMe ? 'border-2 border-black' : 'border-neutral-300'
                   }`}
@@ -472,7 +483,7 @@ export const LobbyView: React.FC<Props> = ({
                       </span>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>

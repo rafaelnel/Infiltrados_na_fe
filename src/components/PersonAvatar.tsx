@@ -20,7 +20,9 @@ export interface CharacterAvatarConfig {
   mustache: MustacheOption;
 }
 
-export const BASE_FACE_IMAGE = '/assets/aistudio/Gemini_Generated_Image_jzkmfzjzkmfzjzkm__1__f36d13de.jfif';
+const base = import.meta.env.BASE_URL || '/';
+const cleanBase = base.endsWith('/') ? base : base + '/';
+export const BASE_FACE_IMAGE = `${cleanBase}assets/aistudio/Gemini_Generated_Image_jzkmfzjzkmfzjzkm__1__f36d13de.jfif`.replace(/([^:]\/)\/+/g, '$1');
 
 export const FACE_TYPE_CHOICES: { id: FaceTypeOption; label: string; icon: string }[] = [
   { id: 'MASCULINO', label: 'Rosto Masculino', icon: '👨' },
@@ -703,6 +705,21 @@ export const PersonAvatar: React.FC<PersonAvatarProps> = ({
         className="w-full h-full"
         style={{ backgroundColor: '#ffffff' }}
       >
+        {/* Fundo vetorizado do rosto de segurança (caso o asset image falhe no GitHub Pages) */}
+        <g className="base-face-fallback">
+          <ellipse cx="100" cy="100" rx="64" ry="76" fill="#fefdfb" stroke="#111111" strokeWidth="4" />
+          <path d="M 72 78 Q 80 73 88 78" fill="none" stroke="#111111" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M 112 78 Q 120 73 128 78" fill="none" stroke="#111111" strokeWidth="2.5" strokeLinecap="round" />
+          <circle cx="80" cy="95" r="7.5" fill="#111111" />
+          <circle cx="120" cy="95" r="7.5" fill="#111111" />
+          <circle cx="78" cy="93" r="2.2" fill="#ffffff" />
+          <circle cx="118" cy="93" r="2.2" fill="#ffffff" />
+          <path d="M 100 98 Q 97 112 103 115" fill="none" stroke="#111111" strokeWidth="2.2" strokeLinecap="round" />
+          <path d="M 82 132 Q 100 142 118 132" fill="none" stroke="#111111" strokeWidth="2.6" strokeLinecap="round" />
+          <ellipse cx="64" cy="112" rx="7" ry="4" fill="#ff7777" fillOpacity="0.25" />
+          <ellipse cx="136" cy="112" rx="7" ry="4" fill="#ff7777" fillOpacity="0.25" />
+        </g>
+
         {/* Rosto Base do Jogo (Gemini_Generated_Image_jzkmfzjzkmfzjzkm__1__f36d13de.jfif) */}
         <image
           href={BASE_FACE_IMAGE}
