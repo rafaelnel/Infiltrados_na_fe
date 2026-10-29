@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Player, Role } from '../types/game';
 import { sounds } from '../utils/audio';
 import { FourPointStar } from './RoleIllustrations';
+import { PersonAvatar } from './PersonAvatar';
 import { Scale, CheckCircle2, UserX, AlertTriangle, Crown } from 'lucide-react';
 
 interface Props {
@@ -11,6 +12,7 @@ interface Props {
   onAdvanceVoting?: () => void;
   isHost?: boolean;
   isSecretBallot?: boolean;
+  hideAvatars?: boolean;
 }
 
 export const VotingPanel: React.FC<Props> = ({
@@ -20,6 +22,7 @@ export const VotingPanel: React.FC<Props> = ({
   onAdvanceVoting,
   isHost,
   isSecretBallot = false,
+  hideAvatars = false,
 }) => {
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(currentPlayer.voteTargetId);
   const [hasConfirmedVote, setHasConfirmedVote] = useState(Boolean(currentPlayer.voteTargetId));
@@ -141,31 +144,42 @@ export const VotingPanel: React.FC<Props> = ({
                   sounds.playClick();
                   setSelectedTargetId(target.id);
                 }}
-                className={`p-2.5 rounded-xl text-left border-2 transition-all flex flex-col justify-between ${
+                className={`p-2 rounded-xl text-left border-2 transition-all flex items-center gap-2 ${
                   isSelected
                     ? 'bg-black text-white border-black scale-[0.98]'
                     : 'bg-white text-black border-black/30 hover:border-black'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-mono font-bold truncate">
-                    {target.name} {isMe ? '(Você)' : ''}
-                  </span>
-                  {!isSecretBallot && votesReceived > 0 && (
-                    <span
-                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-black ${
-                        isSelected ? 'bg-white text-black' : 'bg-black text-white'
-                      }`}
-                    >
-                      {votesReceived}v
+                {!hideAvatars && (
+                  <PersonAvatar
+                    avatar={target.avatar}
+                    seed={target.name}
+                    color={target.color || '#F59E0B'}
+                    size={28}
+                    className="border border-black/30 shrink-0"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-mono font-bold truncate">
+                      {target.name} {isMe ? '(Você)' : ''}
                     </span>
+                    {!isSecretBallot && votesReceived > 0 && (
+                      <span
+                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-black shrink-0 ${
+                          isSelected ? 'bg-white text-black' : 'bg-black text-white'
+                        }`}
+                      >
+                        {votesReceived}v
+                      </span>
+                    )}
+                  </div>
+                  {!isSecretBallot && (
+                    <div className="text-[9px] opacity-75 mt-0.5">
+                      {target.voteTargetId ? '✓ Votou' : 'Aguardando voto'}
+                    </div>
                   )}
                 </div>
-                {!isSecretBallot && (
-                  <div className="text-[9px] opacity-75 mt-1">
-                    {target.voteTargetId ? '✓ Votou' : 'Aguardando voto'}
-                  </div>
-                )}
               </button>
             );
           })}

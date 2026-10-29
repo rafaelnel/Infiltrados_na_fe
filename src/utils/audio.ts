@@ -170,7 +170,7 @@ class SoundEffectsManager {
     osc.stop(ctx.currentTime + 0.06);
   }
 
-  // Galo cantando ao amanhecer (Cocorocó / Rooster Crow)
+  // Galo cantando ao amanhecer (Cocorocó / Rooster Crow exclusivo no celular do host)
   public playRoosterCrow() {
     if (!this.enabled) return;
     const ctx = this.getContext();
@@ -178,19 +178,19 @@ class SoundEffectsManager {
 
     const t = ctx.currentTime;
 
-    // Master filter to shape the brassy throat of a rooster
+    // Filtro ressonante bandpass para dar o timbre estridente e natural da garganta de um galo
     const filter = ctx.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.frequency.setValueAtTime(950, t);
-    filter.Q.setValueAtTime(2.2, t);
+    filter.frequency.setValueAtTime(1050, t);
+    filter.Q.setValueAtTime(2.8, t);
     filter.connect(ctx.destination);
 
-    // Call syllables: "Co - co - ro - CÓOOOO"
+    // Estrutura rítmica clássica: "Co - co - ro - CÓOOOO!"
     const calls = [
-      { start: 0.00, dur: 0.14, startFreq: 460, endFreq: 520, vol: 0.14 },
-      { start: 0.18, dur: 0.12, startFreq: 420, endFreq: 460, vol: 0.16 },
-      { start: 0.34, dur: 0.22, startFreq: 540, endFreq: 680, vol: 0.22 },
-      { start: 0.60, dur: 0.95, startFreq: 780, endFreq: 890, vol: 0.28 },
+      { start: 0.00, dur: 0.15, startFreq: 460, endFreq: 540, vol: 0.22 },
+      { start: 0.19, dur: 0.13, startFreq: 430, endFreq: 480, vol: 0.24 },
+      { start: 0.36, dur: 0.24, startFreq: 550, endFreq: 700, vol: 0.30 },
+      { start: 0.64, dur: 1.10, startFreq: 800, endFreq: 940, vol: 0.36 },
     ];
 
     calls.forEach(({ start, dur, startFreq, endFreq, vol }) => {
@@ -200,23 +200,23 @@ class SoundEffectsManager {
 
       const noteTime = t + start;
       osc.frequency.setValueAtTime(startFreq, noteTime);
-      osc.frequency.exponentialRampToValueAtTime(endFreq, noteTime + dur * 0.7);
-      osc.frequency.exponentialRampToValueAtTime(startFreq * 0.95, noteTime + dur);
+      osc.frequency.exponentialRampToValueAtTime(endFreq, noteTime + dur * 0.65);
+      osc.frequency.exponentialRampToValueAtTime(startFreq * 0.90, noteTime + dur);
 
-      // Pitch vibrato for the sustained last syllable
+      // Vibrato natural na sílaba final longa ("CÓOOOO")
       if (dur > 0.5) {
         const lfo = ctx.createOscillator();
         const lfoGain = ctx.createGain();
-        lfo.frequency.setValueAtTime(6.5, noteTime);
-        lfoGain.gain.setValueAtTime(14, noteTime);
+        lfo.frequency.setValueAtTime(7.2, noteTime);
+        lfoGain.gain.setValueAtTime(20, noteTime);
         lfo.connect(osc.frequency);
-        lfo.start(noteTime);
+        lfo.start(noteTime + 0.08);
         lfo.stop(noteTime + dur);
       }
 
       gain.gain.setValueAtTime(0.001, noteTime);
-      gain.gain.exponentialRampToValueAtTime(vol, noteTime + 0.03);
-      gain.gain.setValueAtTime(vol, noteTime + dur * 0.7);
+      gain.gain.exponentialRampToValueAtTime(vol, noteTime + 0.035);
+      gain.gain.setValueAtTime(vol, noteTime + dur * 0.65);
       gain.gain.exponentialRampToValueAtTime(0.001, noteTime + dur);
 
       osc.connect(gain);
@@ -225,53 +225,48 @@ class SoundEffectsManager {
       osc.start(noteTime);
       osc.stop(noteTime + dur);
     });
-
-    // Gentle church bell backdrop at morning
-    setTimeout(() => {
-      this.playMorningBell();
-    }, 450);
   }
 
-  // Lobo uivando ao cair da noite ("Auuuuuuuu" / Wolf Howl)
+  // Lobo uivando ao cair da noite ("Auuuuuuuu" / Wolf Howl exclusivo no celular do host)
   public playWolfHowl() {
     if (!this.enabled) return;
     const ctx = this.getContext();
     if (!ctx) return;
 
     const t = ctx.currentTime;
-    const duration = 2.6;
+    const duration = 2.8;
 
-    // Filter to give a hollow, echoing nocturnal outdoor body
+    // Filtro ressonante com corte gradual para criar o eco lúgubre noturno
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(1400, t);
-    filter.frequency.exponentialRampToValueAtTime(700, t + duration);
+    filter.frequency.exponentialRampToValueAtTime(650, t + duration);
 
-    // Main howl oscillator
+    // Oscilador principal do uivo
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = 'sawtooth';
 
-    // Howl pitch contour: starts low, rises high into a sustained cry, then gently dips
-    osc.frequency.setValueAtTime(160, t);
-    osc.frequency.exponentialRampToValueAtTime(430, t + 0.55); // Rise up
-    osc.frequency.setValueAtTime(440, t + 1.4); // Sustain
-    osc.frequency.exponentialRampToValueAtTime(240, t + duration - 0.2); // Taper down
-    osc.frequency.exponentialRampToValueAtTime(140, t + duration);
+    // Curva de pitch do uivo: surge grave, sobe alto para o clamor prolongado e desce suavemente
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(440, t + 0.6); // Subida
+    osc.frequency.setValueAtTime(450, t + 1.5); // Sustentação
+    osc.frequency.exponentialRampToValueAtTime(220, t + duration - 0.25); // Queda
+    osc.frequency.exponentialRampToValueAtTime(130, t + duration);
 
-    // LFO for mournful vibrato on the long howl
+    // LFO para o trêmulo doloroso no uivo longo
     const lfo = ctx.createOscillator();
     const lfoGain = ctx.createGain();
-    lfo.frequency.setValueAtTime(4.2, t);
-    lfoGain.gain.setValueAtTime(9, t);
+    lfo.frequency.setValueAtTime(4.5, t);
+    lfoGain.gain.setValueAtTime(12, t);
     lfo.connect(osc.frequency);
     lfo.start(t + 0.4);
     lfo.stop(t + duration);
 
-    // Smooth envelope
+    // Envelope dinâmico suave
     gain.gain.setValueAtTime(0.001, t);
-    gain.gain.exponentialRampToValueAtTime(0.24, t + 0.45);
-    gain.gain.setValueAtTime(0.22, t + 1.5);
+    gain.gain.exponentialRampToValueAtTime(0.32, t + 0.5);
+    gain.gain.setValueAtTime(0.28, t + 1.6);
     gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
 
     osc.connect(gain);
@@ -281,18 +276,18 @@ class SoundEffectsManager {
     osc.start(t);
     osc.stop(t + duration);
 
-    // Sub-bass atmospheric wind
+    // Vento atmosférico noturno sub-grave
     const subOsc = ctx.createOscillator();
     const subGain = ctx.createGain();
     subOsc.type = 'sine';
     subOsc.frequency.setValueAtTime(75, t);
-    subOsc.frequency.exponentialRampToValueAtTime(50, t + 1.8);
-    subGain.gain.setValueAtTime(0.12, t);
-    subGain.gain.exponentialRampToValueAtTime(0.001, t + 2.0);
+    subOsc.frequency.exponentialRampToValueAtTime(45, t + 2.2);
+    subGain.gain.setValueAtTime(0.15, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 2.4);
     subOsc.connect(subGain);
     subGain.connect(ctx.destination);
     subOsc.start(t);
-    subOsc.stop(t + 2.0);
+    subOsc.stop(t + 2.4);
   }
 
   // Suspense da abertura das urnas da assembleia (rolo de tensão e destrave)
@@ -356,6 +351,69 @@ class SoundEffectsManager {
       osc.stop(t + 1.2 + idx * 0.04);
     });
   }
+
+  // Balido cômico e expressivo de ovelha ("MÉÉÉH!" / "BÉÉÉH!")
+  public playSheepBaa(pitchOffset: number = 0) {
+    if (!this.enabled) return;
+    const ctx = this.getContext();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+
+    const baseFreq = Math.max(160, Math.min(380, 240 + pitchOffset));
+    const duration = 0.55;
+
+    // Oscilador principal rico em harmônicos (sawtooth suavizado)
+    const voiceOsc = ctx.createOscillator();
+    voiceOsc.type = 'sawtooth';
+    voiceOsc.frequency.setValueAtTime(baseFreq, t);
+    voiceOsc.frequency.exponentialRampToValueAtTime(baseFreq * 0.92, t + duration);
+
+    // LFO de Vibrato (balido trêmulo natural de ovelha ~6.8Hz)
+    const vibratoOsc = ctx.createOscillator();
+    const vibratoGain = ctx.createGain();
+    vibratoOsc.frequency.setValueAtTime(6.8, t);
+    vibratoGain.gain.setValueAtTime(18, t);
+    vibratoOsc.connect(voiceOsc.frequency);
+
+    // Filtro formante vocal (enfatiza a cavidade bucal da ovelha "eeh")
+    const formantFilter = ctx.createBiquadFilter();
+    formantFilter.type = 'bandpass';
+    formantFilter.frequency.setValueAtTime(baseFreq * 3.2, t);
+    formantFilter.Q.setValueAtTime(3.5, t);
+
+    // Envelope de ganho do balido
+    const voiceGain = ctx.createGain();
+    voiceGain.gain.setValueAtTime(0.001, t);
+    voiceGain.gain.linearRampToValueAtTime(0.22, t + 0.06);
+    voiceGain.gain.setValueAtTime(0.22, t + duration * 0.65);
+    voiceGain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    // Segundo oscilador para corpo acústico aveludado
+    const subOsc = ctx.createOscillator();
+    const subGain = ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(baseFreq * 0.5, t);
+    subGain.gain.setValueAtTime(0.08, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+
+    // Conexões
+    voiceOsc.connect(formantFilter);
+    formantFilter.connect(voiceGain);
+    voiceGain.connect(ctx.destination);
+
+    subOsc.connect(subGain);
+    subGain.connect(ctx.destination);
+
+    // Início e parada
+    vibratoOsc.start(t);
+    voiceOsc.start(t);
+    subOsc.start(t);
+
+    vibratoOsc.stop(t + duration);
+    voiceOsc.stop(t + duration);
+    subOsc.stop(t + duration);
+  }
 }
 
 export const sounds = new SoundEffectsManager();
+

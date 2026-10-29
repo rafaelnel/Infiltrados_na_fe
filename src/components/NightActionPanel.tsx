@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Player, Role, Team, MODIFIERS_METADATA } from '../types/game';
 import { RoleIllustration, FourPointStar } from './RoleIllustrations';
+import { PersonAvatar } from './PersonAvatar';
 import { sounds } from '../utils/audio';
 import {
   Shield,
@@ -30,6 +31,7 @@ interface Props {
   ) => void;
   onAdvanceNight?: () => void;
   isHost?: boolean;
+  waitingCorralNode?: React.ReactNode;
 }
 
 export const NightActionPanel: React.FC<Props> = ({
@@ -40,6 +42,7 @@ export const NightActionPanel: React.FC<Props> = ({
   onPerformAction,
   onAdvanceNight,
   isHost,
+  waitingCorralNode,
 }) => {
   const [selectedTargetId, setSelectedTargetId] = useState<string | null>(player.nightActionTargetId);
   const [selectedSecondaryId, setSelectedSecondaryId] = useState<string | null>(
@@ -381,13 +384,20 @@ export const NightActionPanel: React.FC<Props> = ({
                             sounds.playClick();
                             setSpyTargetId(p.id);
                           }}
-                          className={`p-1.5 rounded text-[10px] font-mono font-bold truncate border transition-all text-left ${
+                          className={`p-1.5 rounded text-[10px] font-mono font-bold truncate border transition-all text-left flex items-center gap-1.5 ${
                             spyTargetId === p.id
                               ? 'bg-amber-500 text-black border-white'
                               : 'bg-[#1C2541] text-slate-200 border-indigo-900/60 hover:border-indigo-400'
                           }`}
                         >
-                          {p.name}
+                          <PersonAvatar
+                            avatar={p.avatar}
+                            color={p.color || '#F59E0B'}
+                            seed={p.name}
+                            size={18}
+                            className="shrink-0"
+                          />
+                          <span className="truncate">{p.name}</span>
                         </button>
                       ))}
                   </div>
@@ -459,6 +469,12 @@ export const NightActionPanel: React.FC<Props> = ({
               )}
             </button>
 
+            {isActionSaved && waitingCorralNode && (
+              <div className="mt-3 animate-fadeIn">
+                {waitingCorralNode}
+              </div>
+            )}
+
             <button
               onClick={handleResetChoice}
               className="w-full py-2.5 border border-indigo-400/40 rounded-full text-[11px] font-mono text-indigo-200 hover:text-white hover:bg-white/10 transition-colors flex items-center justify-center gap-1.5"
@@ -512,13 +528,22 @@ export const NightActionPanel: React.FC<Props> = ({
                         sounds.playClick();
                         setSelectedTargetId(p.id);
                       }}
-                      className={`p-2 rounded-lg text-xs font-mono font-bold truncate border transition-all text-left ${
+                      className={`p-2 rounded-lg text-xs font-mono font-bold truncate border transition-all text-left flex items-center gap-1.5 ${
                         selectedTargetId === p.id
                           ? 'bg-blue-600 text-white border-white shadow-md'
                           : 'bg-[#1C2541] text-slate-200 border-indigo-900/60 hover:border-indigo-400'
                       }`}
                     >
-                      {p.name} {p.id === player.id ? '(Você)' : ''}
+                      <PersonAvatar
+                        avatar={p.avatar}
+                        color={p.color || '#F59E0B'}
+                        seed={p.name}
+                        size={22}
+                        className="shrink-0"
+                      />
+                      <span className="truncate">
+                        {p.name} {p.id === player.id ? '(Você)' : ''}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -538,13 +563,22 @@ export const NightActionPanel: React.FC<Props> = ({
                           sounds.playClick();
                           setSelectedSecondaryId(p.id);
                         }}
-                        className={`p-2 rounded-lg text-xs font-mono font-bold truncate border transition-all text-left ${
+                        className={`p-2 rounded-lg text-xs font-mono font-bold truncate border transition-all text-left flex items-center gap-1.5 ${
                           selectedSecondaryId === p.id
                             ? 'bg-blue-600 text-white border-white shadow-md'
                             : 'bg-[#1C2541] text-slate-200 border-indigo-900/60 hover:border-indigo-400'
                         }`}
                       >
-                        {p.name} {p.id === player.id ? '(Você)' : ''}
+                        <PersonAvatar
+                          avatar={p.avatar}
+                          color={p.color || '#F59E0B'}
+                          seed={p.name}
+                          size={22}
+                          className="shrink-0"
+                        />
+                        <span className="truncate">
+                          {p.name} {p.id === player.id ? '(Você)' : ''}
+                        </span>
                       </button>
                     ))}
                 </div>
@@ -637,7 +671,7 @@ export const NightActionPanel: React.FC<Props> = ({
                       key={target.id}
                       disabled={isBlockedConsecutive}
                       onClick={() => handleSelectTarget(target.id)}
-                      className={`p-2.5 rounded-xl text-left border-2 transition-all flex flex-col justify-between ${
+                      className={`p-2 rounded-xl text-left border-2 transition-all flex items-center gap-2 ${
                         isBlockedConsecutive
                           ? 'opacity-40 bg-neutral-900 border-neutral-700 cursor-not-allowed'
                           : isSelected
@@ -645,21 +679,30 @@ export const NightActionPanel: React.FC<Props> = ({
                           : 'bg-[#1C2541] text-slate-200 border-indigo-900/60 hover:border-indigo-400'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold font-mono truncate">{target.name}</span>
-                        {player.role === 'EVANGELISTA' && target.prayersReceived > 0 && (
-                          <span className="text-[9px] font-mono bg-indigo-950 text-indigo-200 px-1.5 py-0.5 rounded-full font-bold border border-indigo-400/40">
-                            {target.prayersReceived} 🙏
-                          </span>
-                        )}
+                      <PersonAvatar
+                        avatar={target.avatar}
+                        color={target.color || '#F59E0B'}
+                        seed={target.name}
+                        size={28}
+                        className="shrink-0"
+                      />
+                      <div className="min-w-0 flex-1 flex flex-col justify-between">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold font-mono truncate">{target.name}</span>
+                          {player.role === 'EVANGELISTA' && target.prayersReceived > 0 && (
+                            <span className="text-[9px] font-mono bg-indigo-950 text-indigo-200 px-1.5 py-0.5 rounded-full font-bold border border-indigo-400/40 shrink-0">
+                              {target.prayersReceived} 🙏
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-slate-300 mt-0.5 truncate">
+                          {isBlockedConsecutive
+                            ? 'Protegido ontem (Bloqueado)'
+                            : target.id === player.id
+                            ? 'Você mesmo'
+                            : 'Membro da vila'}
+                        </span>
                       </div>
-                      <span className="text-[9px] text-slate-300 mt-1">
-                        {isBlockedConsecutive
-                          ? 'Protegido ontem (Bloqueado)'
-                          : target.id === player.id
-                          ? 'Você mesmo'
-                          : 'Membro da vila'}
-                      </span>
                     </button>
                   );
                 })}

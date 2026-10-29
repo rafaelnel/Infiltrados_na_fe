@@ -3,11 +3,10 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   return {
-    // base: './' permite que o build funcione de forma relativa tanto na raiz (rafaelnel.github.io)
-    // quanto em subpastas de repositório (rafaelnel.github.io/nome-do-repo/)
-    base: process.env.VITE_BASE_PATH || './',
+    // Em modo build estático usa './' (para GitHub Pages), e no dev server usa '/'
+    base: process.env.VITE_BASE_PATH || (command === 'build' ? './' : '/'),
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

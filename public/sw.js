@@ -1,5 +1,5 @@
 // sw.js - Service Worker para Infiltrado na Fé (PWA)
-const CACHE_NAME = 'infiltrado-na-fe-v2';
+const CACHE_NAME = 'infiltrado-na-fe-v3';
 
 // Recursos essenciais para inicialização do App Shell
 const PRECACHE_ASSETS = [
@@ -49,71 +49,66 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Estratégia de requisição: Cache First para assets estáticos, Network First para navegação, bypass para API e WebSockets
+// Estratégia de requisição: Network First para navegação e scripts de desenvolvimento, bypass para API e WebSockets
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Não interceptar requisições não-GET, nem rotas de API ou WebSockets/Socket.io
+  // Não interceptar requisições não-GET, rotas de API, WebSockets ou módulos do servidor de desenvolvimento Vite
   if (
     event.request.method !== 'GET' ||
     url.pathname.startsWith('/api') ||
     url.pathname.startsWith('/socket.io') ||
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.startsWith('/@') ||
+    url.pathname.endsWith('.tsx') ||
+    url.pathname.endsWith('.ts') ||
+    url.search.includes('v=') ||
+    url.search.includes('t=') ||
     url.protocol.startsWith('ws')
   ) {
     return;
   }
 
-  // Para navegação HTML: Network-first com fallback para cache
+  // Para navegação HTML: Network-first com fallback seguro para cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then((networkResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, networkResponse.clone());
-            return networkResponse;
-          });
+          if (networkResponse && networkResponse.status === 200) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, clone);
+            });
+          }
+          return networkResponse;
         })
         .catch(() => {
           return caches.match('/index.html').then((matched) => {
-            return matched || caches.match('/');
+            return matched || caches.match('/') || new Response('Offline', { status: 503 });
           });
         })
     );
     return;
   }
 
-  // Para assets estáticos: Cache-first com atualização em background
+  // Para assets estáticos: Network-first com fallback para cache (evita travar em versões antigas)
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Atualiza silenciosamente em background se estiver online
-        fetch(event.request)
-          .then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, networkResponse);
-              });
-            }
-          })
-          .catch(() => {});
-        return cachedResponse;
-      }
-
-      return fetch(event.request)
-        .then((networkResponse) => {
-          if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
-            return networkResponse;
-          }
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
           });
-          return networkResponse;
-        })
-        .catch(() => {
-          // Fallback offline se necessário
-          return caches.match(event.request);
+        }
+        return networkResponse;
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cachedResponse) => {
+          return cachedResponse || new Response('', { status: 504 });
         });
-    })
+      })
   );
 });
+

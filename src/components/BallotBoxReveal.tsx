@@ -1,11 +1,180 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { sounds } from '../utils/audio';
-import { Scroll, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Scroll, Sparkles, CheckCircle2, UserX, Ban } from 'lucide-react';
+import { Player, GameLog } from '../types/game';
+import { PersonAvatar } from './PersonAvatar';
+
+export function findEliminatedTribunalPlayer(
+  players: Player[],
+  lastLog?: GameLog | { text?: string; type?: string }
+): Player | null {
+  if (!lastLog?.text) return null;
+  const text = lastLog.text;
+  if (
+    text.includes('sem veredito') ||
+    text.includes('Ninguém foi') ||
+    text.includes('sem consenso')
+  ) {
+    return null;
+  }
+
+  // Procura entre os jogadores mortos cujo nome consta na sentença do tribunal
+  const deadPlayers = players.filter(p => !p.isAlive);
+  for (const p of deadPlayers) {
+    if (p.name && text.includes(p.name)) {
+      return p;
+    }
+  }
+  return null;
+}
+
+interface ExiledPlayerAvatarVerdictProps {
+  player: Player;
+  compact?: boolean;
+}
+
+export const ExiledPlayerAvatarVerdict: React.FC<ExiledPlayerAvatarVerdictProps> = ({
+  player,
+  compact = false,
+}) => {
+  const avatarSize = compact ? 64 : 88;
+  const playerColor = player.color || '#F59E0B';
+
+  return (
+    <div
+      className={`flex flex-col items-center justify-center select-none ${
+        compact ? 'py-1.5 space-y-1.5' : 'py-2 space-y-2.5'
+      }`}
+    >
+      <div className="relative flex items-center justify-center">
+        {/* Onda de choque vermelha de banimento */}
+        <motion.div
+          initial={{ scale: 0.75, opacity: 0 }}
+          animate={{ scale: [0.85, 1.55], opacity: [0.75, 0] }}
+          transition={{
+            delay: 0.45,
+            duration: 1.1,
+            repeat: Infinity,
+            repeatDelay: 1.6,
+            ease: 'easeOut',
+          }}
+          className="absolute inset-0 rounded-full border-2 border-red-600 pointer-events-none"
+        />
+
+        {/* Avatar do jogador sofrendo animação dramática de Fade-Out e dessaturação */}
+        <motion.div
+          initial={{ opacity: 1, scale: 1, filter: 'grayscale(0%) brightness(1)' }}
+          animate={{
+            opacity: [1, 0.92, 0.26],
+            scale: [1, 1.06, 0.9],
+            filter: [
+              'grayscale(0%) brightness(1)',
+              'grayscale(65%) brightness(0.85)',
+              'grayscale(100%) brightness(0.65)',
+            ],
+          }}
+          transition={{
+            duration: 1.45,
+            times: [0, 0.35, 1],
+            ease: 'easeInOut',
+          }}
+          className="relative rounded-full p-1 border-3 shadow-lg bg-white"
+          style={{ borderColor: playerColor }}
+        >
+          <PersonAvatar
+            avatar={player.avatar}
+            color={playerColor}
+            seed={player.name}
+            size={avatarSize}
+            className="border-2 border-black"
+          />
+        </motion.div>
+
+        {/* Tarja diagonal de exclusão sobre o avatar */}
+        <motion.div
+          initial={{ opacity: 0, scale: 1.6, rotate: -25 }}
+          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+          transition={{
+            delay: 0.42,
+            type: 'spring',
+            stiffness: 300,
+            damping: 18,
+          }}
+          className="absolute inset-0 flex items-center justify-center pointer-events-none"
+        >
+          <div className="w-full h-full rounded-full border-3 border-red-600/90 bg-red-950/25 flex items-center justify-center shadow-[0_0_20px_rgba(220,38,38,0.45)]">
+            <Ban
+              size={compact ? 42 : 56}
+              strokeWidth={2.5}
+              className="text-red-600 drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]"
+            />
+          </div>
+        </motion.div>
+
+        {/* Ícone de Exclusão (UserX) cravado no canto inferior direito */}
+        <motion.div
+          initial={{ scale: 0, opacity: 0, rotate: -35 }}
+          animate={{ scale: 1, opacity: 1, rotate: 0 }}
+          transition={{
+            delay: 0.6,
+            type: 'spring',
+            stiffness: 340,
+            damping: 16,
+          }}
+          className={`absolute -bottom-1 -right-1 rounded-full bg-red-600 text-white border-2 border-black flex items-center justify-center shadow-md ${
+            compact ? 'w-7 h-7' : 'w-9 h-9'
+          }`}
+          title="Jogador Eliminado no Tribunal"
+        >
+          <UserX size={compact ? 14 : 18} strokeWidth={2.5} />
+        </motion.div>
+      </div>
+
+      {/* Nome do jogador riscado + Selo de Exilado */}
+      <div className="flex flex-col items-center space-y-1">
+        <div className="relative inline-flex items-center gap-1.5 px-2.5 py-0.5">
+          <span
+            className="w-2.5 h-2.5 rounded-full border border-black shrink-0 opacity-60"
+            style={{ backgroundColor: playerColor }}
+          />
+          <motion.span
+            initial={{ opacity: 1 }}
+            animate={{ opacity: 0.55 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+            className={`font-mono font-black uppercase tracking-wider text-neutral-800 ${
+              compact ? 'text-xs' : 'text-sm sm:text-base'
+            }`}
+          >
+            {player.name}
+          </motion.span>
+          {/* Linha animada riscando o nome */}
+          <motion.span
+            initial={{ width: '0%' }}
+            animate={{ width: '100%' }}
+            transition={{ delay: 0.55, duration: 0.45, ease: 'easeOut' }}
+            className="SaveLine absolute left-0 top-1/2 h-[2.5px] bg-red-600 -translate-y-1/2 rounded-full pointer-events-none"
+          />
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 6, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ delay: 0.65, duration: 0.3 }}
+          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-600 text-white border border-black text-[9px] font-mono font-black uppercase tracking-widest shadow-xs"
+        >
+          <UserX size={11} />
+          <span>Exilado pelo Tribunal</span>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
 
 interface BallotBoxRevealProps {
   dayNumber: number;
   logText: string;
+  eliminatedPlayer?: Player | null;
   onComplete: () => void;
   autoCloseDelay?: number;
 }
@@ -13,6 +182,7 @@ interface BallotBoxRevealProps {
 export const BallotBoxReveal: React.FC<BallotBoxRevealProps> = ({
   dayNumber,
   logText,
+  eliminatedPlayer,
   onComplete,
 }) => {
   // Estágios da animação:
@@ -77,7 +247,7 @@ export const BallotBoxReveal: React.FC<BallotBoxRevealProps> = ({
       </div>
 
       {/* Ilustração da Urna Sagrada da Assembleia com tampa animada */}
-      <div className="relative my-4 flex items-center justify-center w-64 h-56 z-10">
+      <div className="relative my-4 flex items-center justify-center w-64 h-64 z-10">
         {/* Caixa da Urna (Base) */}
         <motion.div
           animate={
@@ -102,7 +272,7 @@ export const BallotBoxReveal: React.FC<BallotBoxRevealProps> = ({
             strokeLinejoin="round"
           >
             {/* Sombra de apoio no chão */}
-            <ellipse cx="100" cy="165" rx="75" ry="12" fill="#000000" opacity="0.6" stroke="none" />
+            <path d="M 25,165 A 75,12 0 1,0 175,165 A 75,12 0 1,0 25,165 Z" fill="#000000" opacity="0.6" stroke="none" />
 
             {/* Corpo da Urna de Madeira Antiga com Placas */}
             <path
@@ -211,11 +381,11 @@ export const BallotBoxReveal: React.FC<BallotBoxRevealProps> = ({
             {stage === 'REVEALED' && (
               <motion.div
                 initial={{ y: 50, scale: 0.5, opacity: 0 }}
-                animate={{ y: -45, scale: 1, opacity: 1 }}
+                animate={{ y: -55, scale: 1, opacity: 1 }}
                 transition={{ duration: 0.6, type: 'spring', bounce: 0.4 }}
-                className="absolute left-1/2 -translate-x-1/2 -top-6 w-56 bg-neutral-100 border-3 border-black text-black rounded-2xl p-3.5 shadow-2xl z-30 font-mono text-left"
+                className="absolute left-1/2 -translate-x-1/2 -top-10 w-60 bg-neutral-100 border-3 border-black text-black rounded-2xl p-3.5 shadow-2xl z-30 font-mono text-left space-y-2"
               >
-                <div className="flex items-center justify-between border-b-2 border-black/30 pb-1 mb-2">
+                <div className="flex items-center justify-between border-b-2 border-black/30 pb-1">
                   <span className="text-[10px] font-black uppercase text-amber-900 tracking-wider flex items-center gap-1">
                     <Scroll size={12} />
                     Veredito Oficial
@@ -224,7 +394,12 @@ export const BallotBoxReveal: React.FC<BallotBoxRevealProps> = ({
                     {dayNumber}º Dia
                   </span>
                 </div>
-                <p className="text-xs font-bold leading-snug line-clamp-4 text-neutral-900">
+
+                {eliminatedPlayer && (
+                  <ExiledPlayerAvatarVerdict player={eliminatedPlayer} compact={true} />
+                )}
+
+                <p className="text-xs font-bold leading-snug line-clamp-3 text-neutral-900 text-center">
                   {logText}
                 </p>
               </motion.div>

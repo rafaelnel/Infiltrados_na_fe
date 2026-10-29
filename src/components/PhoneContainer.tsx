@@ -38,16 +38,27 @@ export const PhoneContainer: React.FC<Props> = ({
 
   return (
     <div
-      className={`min-h-screen w-full transition-colors duration-500 font-sans flex flex-col justify-between selection:bg-black selection:text-white ${
-        isNight ? 'bg-[#060D20] text-white' : 'bg-[#f0f2f5] text-black'
+      className={`min-h-screen w-full transition-all duration-700 ease-in-out font-sans flex flex-col justify-between selection:bg-black selection:text-white relative overflow-x-hidden ${
+        isNight
+          ? 'bg-gradient-to-b from-[#091124] via-[#060D20] to-[#02050E] text-white'
+          : 'bg-gradient-to-b from-[#fbfbfe] via-[#f1f3f9] to-[#e4e8f1] text-black'
       }`}
     >
+      {/* Luz ambiente de fundo no topo (Sol dourado de dia, Aura azulada à noite) */}
+      <div
+        className={`absolute top-0 inset-x-0 h-96 pointer-events-none transition-opacity duration-1000 ${
+          isNight
+            ? 'opacity-40 bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.25),transparent_70%)]'
+            : 'opacity-50 bg-[radial-gradient(ellipse_at_top,_rgba(251,191,36,0.2),transparent_70%)]'
+        }`}
+      />
+
       {/* Top Navbar */}
       <header
-        className={`w-full sticky top-0 z-40 transition-colors duration-500 ${
+        className={`w-full sticky top-0 z-40 transition-all duration-700 backdrop-blur-md ${
           isNight
-            ? 'bg-[#0B132B] border-b-2 border-indigo-900/80 shadow-lg text-white'
-            : 'bg-white border-b-2 border-black shadow-xs text-black'
+            ? 'bg-[#0B132B]/90 border-b-2 border-indigo-900/80 shadow-lg text-white'
+            : 'bg-white/90 border-b-2 border-black shadow-xs text-black'
         }`}
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -166,10 +177,10 @@ export const PhoneContainer: React.FC<Props> = ({
       {/* Main Game Arena - LAYOUT NORMAL SEM MOLDURA DE CELULAR */}
       <main className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-6 flex flex-col justify-center">
         <div
-          className={`w-full transition-colors duration-500 rounded-3xl overflow-hidden min-h-[580px] sm:min-h-[640px] flex flex-col p-4 sm:p-6 shadow-2xl ${
+          className={`w-full transition-all duration-700 rounded-3xl overflow-hidden min-h-[580px] sm:min-h-[640px] flex flex-col p-4 sm:p-6 shadow-2xl relative ${
             isNight
-              ? 'bg-[#0B132B] border-2 border-indigo-500/40 text-white shadow-indigo-950/40'
-              : 'bg-white border-2 sm:border-[3px] border-black text-black'
+              ? 'bg-gradient-to-b from-[#0E172E] via-[#0B132B] to-[#070D1E] border-2 border-indigo-500/50 text-white shadow-indigo-950/60 shadow-[0_0_50px_rgba(79,70,229,0.12)]'
+              : 'bg-gradient-to-b from-white via-neutral-50/95 to-white border-2 sm:border-[3px] border-black text-black shadow-xl shadow-stone-900/10 shadow-[0_0_50px_rgba(245,158,11,0.06)]'
           }`}
         >
           {children}

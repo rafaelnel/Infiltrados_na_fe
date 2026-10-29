@@ -21,7 +21,11 @@ import {
 } from 'lucide-react';
 import { Role, ROLES_METADATA, ModifiersConfig } from '../types/game';
 import { FourPointStar, RoleIllustration } from './RoleIllustrations';
+import { PersonAvatar, encodeAvatar, getRandomAvatar, generateRandomCharacterConfig } from './PersonAvatar';
+import { AvatarCustomizerModal, pickRandomAvailableColor } from './AvatarCustomizerModal';
 import { sounds } from '../utils/audio';
+
+export type LocalPlayerProfilesMap = Record<string, { color: string; avatar: string }>;
 
 interface Props {
   isOpen: boolean;
@@ -30,11 +34,13 @@ interface Props {
     playerNames: string[],
     customDeck?: Role[],
     discussionTimeSeconds?: number,
-    modifiersConfig?: ModifiersConfig
+    modifiersConfig?: ModifiersConfig,
+    playerProfiles?: LocalPlayerProfilesMap
   ) => void;
 }
 
 const STORAGE_KEY = 'infiltrado_saved_local_players';
+const PROFILES_STORAGE_KEY = 'infiltrado_saved_local_profiles';
 
 const DEFAULT_PLAYERS = [
   'Rafael',
@@ -46,6 +52,28 @@ const DEFAULT_PLAYERS = [
   'Gabriel',
   'Rebeca',
 ];
+
+function buildCompleteProfiles(
+  names: string[],
+  existing: LocalPlayerProfilesMap = {}
+): LocalPlayerProfilesMap {
+  const result: LocalPlayerProfilesMap = { ...existing };
+  const assignedColors: string[] = [];
+
+  names.forEach((rawName, idx) => {
+    const key = rawName.trim() || `Player ${idx + 1}`;
+    const current = result[key] || result[rawName];
+    const resolvedColor = pickRandomAvailableColor(current?.color, assignedColors, key).color;
+    assignedColors.push(resolvedColor);
+    const resolvedAvatar = current?.avatar || encodeAvatar(getRandomAvatar(key));
+    result[key] = {
+      color: resolvedColor,
+      avatar: resolvedAvatar,
+    };
+  });
+
+  return result;
+}
 
 // Regra de segurança anti-snowballing: calcula o limite máximo seguro de soldados
 export function getMaxAllowedSoldiers(totalPlayers: number): number {
@@ -82,6 +110,8 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
 }) => {
   const [step, setStep] = useState<'NAMES' | 'ROLES'>('NAMES');
   const [players, setPlayers] = useState<string[]>([]);
+  const [playerProfiles, setPlayerProfiles] = useState<LocalPlayerProfilesMap>({});
+  const [customizingPlayerIdx, setCustomizingPlayerIdx] = useState<number | null>(null);
   const [newName, setNewName] = useState('');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -107,23 +137,44 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
     anjo: true,
   });
 
+  const saveProfilesToStorage = (updatedProfiles: LocalPlayerProfilesMap) => {
+    setPlayerProfiles(updatedProfiles);
+    try {
+      localStorage.setItem(PROFILES_STORAGE_KEY, JSON.stringify(updatedProfiles));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Load from localStorage on mount
   useEffect(() => {
+    let initialNames = DEFAULT_PLAYERS;
+    let storedProfiles: LocalPlayerProfilesMap = {};
+    try {
+      const rawProfiles = localStorage.getItem(PROFILES_STORAGE_KEY);
+      if (rawProfiles) {
+        storedProfiles = JSON.parse(rawProfiles) || {};
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length >= 5) {
-          setPlayers(parsed);
-          setRoleCounts(generateRecommendedDeck(parsed.length));
-          return;
+          initialNames = parsed;
         }
       }
     } catch (e) {
       console.error(e);
     }
-    setPlayers(DEFAULT_PLAYERS);
-    setRoleCounts(generateRecommendedDeck(DEFAULT_PLAYERS.length));
+
+    setPlayers(initialNames);
+    setRoleCounts(generateRecommendedDeck(initialNames.length));
+    const completeProfiles = buildCompleteProfiles(initialNames, storedProfiles);
+    saveProfilesToStorage(completeProfiles);
   }, [isOpen]);
 
   // Recalcula baralho recomendado quando entra no Passo 2 se o total de jogadores mudou
@@ -139,9 +190,11 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
     setStep('ROLES');
   };
 
-  // Salvar nomes no storage
-  const saveToStorage = (updated: string[]) => {
+  // Salvar nomes no storage e garantir que todos tenham cor única e avatar
+  const saveToStorage = (updated: string[], existingProfiles: LocalPlayerProfilesMap = playerProfiles) => {
     setPlayers(updated);
+    const complete = buildCompleteProfiles(updated, existingProfiles);
+    saveProfilesToStorage(complete);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       setSavedSuccess(true);
@@ -173,9 +226,51 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
   };
 
   const handleUpdateName = (index: number, val: string) => {
+    const oldName = players[index]?.trim();
+    const newTrimmed = val.trim();
+    const nextProfiles = { ...playerProfiles };
+    if (oldName && newTrimmed && nextProfiles[oldName] && !nextProfiles[newTrimmed]) {
+      nextProfiles[newTrimmed] = nextProfiles[oldName];
+    }
     const updated = [...players];
     updated[index] = val;
-    saveToStorage(updated);
+    saveToStorage(updated, nextProfiles);
+  };
+
+  const handleRandomizeSinglePlayer = (index: number) => {
+    sounds.playClick();
+    const pName = players[index]?.trim() || `Player ${index + 1}`;
+    const otherTakenColors = players
+      .map((name, i) => (i === index ? null : playerProfiles[name.trim() || `Player ${i + 1}`]?.color))
+      .filter((c): c is string => Boolean(c));
+    const randomColor = pickRandomAvailableColor(undefined, otherTakenColors).color;
+    const randomAvatar = encodeAvatar(generateRandomCharacterConfig());
+    const nextProfiles = {
+      ...playerProfiles,
+      [pName]: {
+        color: randomColor,
+        avatar: randomAvatar,
+      },
+    };
+    saveProfilesToStorage(nextProfiles);
+  };
+
+  const handleRandomizeAllProfiles = () => {
+    sounds.playClick();
+    const assignedColors: string[] = [];
+    const nextProfiles: LocalPlayerProfilesMap = { ...playerProfiles };
+    players.forEach((rawName, idx) => {
+      const key = rawName.trim() || `Player ${idx + 1}`;
+      const chosenColor = pickRandomAvailableColor(undefined, assignedColors).color;
+      assignedColors.push(chosenColor);
+      nextProfiles[key] = {
+        color: chosenColor,
+        avatar: encodeAvatar(generateRandomCharacterConfig()),
+      };
+    });
+    saveProfilesToStorage(nextProfiles);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 1500);
   };
 
   const handleResetDefaults = () => {
@@ -253,7 +348,8 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
       }
     });
 
-    onStartWithPlayers(players, deck, discussionSeconds, modifiersConfig);
+    const finalProfiles = buildCompleteProfiles(players, playerProfiles);
+    onStartWithPlayers(players, deck, discussionSeconds, modifiersConfig, finalProfiles);
   };
 
   if (!isOpen) return null;
@@ -342,48 +438,117 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
                     Nenhum jogador cadastrado. Adicione pelo menos 5 nomes acima.
                   </div>
                 ) : (
-                  players.map((pName, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-2 bg-white border border-neutral-300 rounded-xl gap-2 hover:border-black transition-colors"
-                    >
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className="w-5 h-5 rounded-full bg-black text-white flex items-center justify-center text-[10px] font-bold shrink-0">
-                          {idx + 1}
-                        </span>
-                        <input
-                          type="text"
-                          value={pName}
-                          onChange={e => handleUpdateName(idx, e.target.value)}
-                          className="flex-1 bg-transparent font-bold text-xs focus:outline-none border-b border-transparent focus:border-black truncate"
-                        />
-                      </div>
-                      <button
-                        onClick={() => handleRemovePlayer(idx)}
-                        title="Remover Jogador"
-                        className="p-1 text-neutral-400 hover:text-black hover:bg-neutral-100 rounded-lg transition-colors"
+                  players.map((pName, idx) => {
+                    const key = pName.trim() || `Player ${idx + 1}`;
+                    const profile = playerProfiles[key] || {
+                      color: '#F59E0B',
+                      avatar: encodeAvatar(getRandomAvatar(key)),
+                    };
+
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between p-2 bg-white border border-neutral-300 rounded-xl gap-2 hover:border-black transition-colors"
                       >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
+                        <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sounds.playClick();
+                              setCustomizingPlayerIdx(idx);
+                            }}
+                            title="Personalizar Avatar e Cor"
+                            className="relative shrink-0 cursor-pointer group"
+                          >
+                            <PersonAvatar
+                              avatar={profile.avatar}
+                              color={profile.color}
+                              seed={key}
+                              size={36}
+                              className="border-2 border-black shrink-0 group-hover:scale-105 transition-transform"
+                            />
+                            <span
+                              className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full text-white border border-black flex items-center justify-center text-[9px] font-bold shadow-2xs"
+                              style={{ backgroundColor: profile.color }}
+                            >
+                              {idx + 1}
+                            </span>
+                          </button>
+
+                          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
+                              style={{ backgroundColor: profile.color }}
+                              title="Cor do participante"
+                            />
+                            <input
+                              type="text"
+                              value={pName}
+                              onChange={e => handleUpdateName(idx, e.target.value)}
+                              className="flex-1 bg-transparent font-bold text-xs focus:outline-none border-b border-transparent focus:border-black truncate"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleRandomizeSinglePlayer(idx)}
+                            title="Gerar Avatar e Cor Aleatórios"
+                            className="px-1.5 py-1 border border-black/30 bg-amber-100 hover:bg-amber-200 text-black rounded-lg text-[10px] font-bold transition-colors cursor-pointer"
+                          >
+                            🎲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              sounds.playClick();
+                              setCustomizingPlayerIdx(idx);
+                            }}
+                            title="Personalizar Rosto e Cor"
+                            className="px-2 py-1 border border-black bg-black text-white hover:bg-neutral-800 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1"
+                          >
+                            <Sparkles size={10} className="text-amber-400" />
+                            <span>Cor</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemovePlayer(idx)}
+                            title="Remover Jogador"
+                            className="p-1 text-neutral-400 hover:text-black hover:bg-neutral-100 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap gap-1.5 pt-1">
               <button
-                onClick={handleResetDefaults}
-                className="flex-1 py-1.5 border border-black/40 rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100 transition-colors flex items-center justify-center gap-1 text-neutral-700"
+                type="button"
+                onClick={handleRandomizeAllProfiles}
+                className="flex-1 py-1.5 px-2 border-2 border-black bg-amber-300 hover:bg-amber-400 rounded-xl text-[10px] font-black uppercase transition-colors flex items-center justify-center gap-1 text-black cursor-pointer"
               >
-                <RotateCcw size={12} /> Nomes Padrão (8)
+                <span>🎲 Gerar Avatares & Cores Aleatórios</span>
               </button>
               <button
-                onClick={handleClearAll}
-                className="px-3 py-1.5 border border-neutral-300 rounded-xl text-[10px] font-bold uppercase hover:bg-red-50 text-neutral-600 hover:text-red-700 transition-colors"
+                type="button"
+                onClick={handleResetDefaults}
+                className="py-1.5 px-2.5 border border-black/40 rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100 transition-colors flex items-center justify-center gap-1 text-neutral-700 cursor-pointer"
               >
-                Limpar Lista
+                <RotateCcw size={12} /> Padrão (8)
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                className="px-2.5 py-1.5 border border-neutral-300 rounded-xl text-[10px] font-bold uppercase hover:bg-red-50 text-neutral-600 hover:text-red-700 transition-colors cursor-pointer"
+              >
+                Limpar
               </button>
             </div>
 
@@ -773,6 +938,43 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
             </div>
           </div>
         )}
+
+        {/* Modal de Personalização de Avatar e Cor para o Integrante Selecionado */}
+        {customizingPlayerIdx !== null && players[customizingPlayerIdx] !== undefined && (() => {
+          const targetName = players[customizingPlayerIdx]?.trim() || `Player ${customizingPlayerIdx + 1}`;
+          const currentProf = playerProfiles[targetName] || {
+            color: '#F59E0B',
+            avatar: encodeAvatar(getRandomAvatar(targetName)),
+          };
+          const otherTakenColors = players
+            .map((name, i) =>
+              i === customizingPlayerIdx ? null : playerProfiles[name.trim() || `Player ${i + 1}`]?.color
+            )
+            .filter((c): c is string => Boolean(c));
+
+          return (
+            <AvatarCustomizerModal
+              isOpen={true}
+              onClose={() => setCustomizingPlayerIdx(null)}
+              initialAvatar={currentProf.avatar}
+              initialColor={currentProf.color}
+              playerName={targetName}
+              takenColors={otherTakenColors}
+              onSave={(newAvatar, newColor) => {
+                const resolvedColor = pickRandomAvailableColor(newColor, otherTakenColors).color;
+                const nextProfiles = {
+                  ...playerProfiles,
+                  [targetName]: {
+                    avatar: newAvatar,
+                    color: resolvedColor,
+                  },
+                };
+                saveProfilesToStorage(nextProfiles);
+                setCustomizingPlayerIdx(null);
+              }}
+            />
+          );
+        })()}
       </div>
     </div>
   );

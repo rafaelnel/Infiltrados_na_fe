@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Shield, Users, MessageSquare } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChatMessage, Player } from '../types/game';
 import { sounds } from '../utils/audio';
+import { PersonAvatar } from './PersonAvatar';
 
 interface Props {
   messages: ChatMessage[];
   currentPlayer: Player;
   onSendMessage: (text: string, channel: 'PUBLIC' | 'SOLDIERS') => void;
   disabled?: boolean;
+  players?: Player[];
 }
 
 export const ChatPanel: React.FC<Props> = ({
@@ -16,6 +18,7 @@ export const ChatPanel: React.FC<Props> = ({
   currentPlayer,
   onSendMessage,
   disabled = false,
+  players = [],
 }) => {
   const [activeChannel, setActiveChannel] = useState<'PUBLIC' | 'SOLDIERS'>('PUBLIC');
   const [inputText, setInputText] = useState('');
@@ -24,6 +27,14 @@ export const ChatPanel: React.FC<Props> = ({
   const isSoldier = currentPlayer.team === 'SOLDADOS';
 
   const filteredMessages = messages.filter(m => {
+    if (
+      m.text?.startsWith('__SHEEP__:') ||
+      m.text?.startsWith('__PROF__:') ||
+      m.text?.startsWith('__PROFILE__:') ||
+      m.text === '__REQUEST_PROFILES__'
+    ) {
+      return false;
+    }
     if (m.channel === 'PUBLIC' || m.channel === 'SYSTEM') return true;
     if (m.channel === 'SOLDIERS') return isSoldier;
     return false;
@@ -53,6 +64,22 @@ export const ChatPanel: React.FC<Props> = ({
     'Quem o Evangelista abençoou ontem?',
     'Vamos manter a união do rebanho.',
   ];
+
+  if (!currentPlayer.isAlive) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-6 border-2 border-black rounded-2xl bg-neutral-100 text-center space-y-2 shadow-sm font-mono">
+        <span className="inline-block px-3 py-1 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-widest">
+          ✝️ Silêncio dos Eliminados
+        </span>
+        <p className="text-xs font-black uppercase text-black">
+          Sem Acesso ao Chat da Vila
+        </p>
+        <p className="text-[11px] text-neutral-600 max-w-xs leading-snug">
+          Personagens eliminados não podem ler nem enviar mensagens no chat da congregação.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full border-2 border-black rounded-2xl bg-white overflow-hidden shadow-sm">
@@ -110,6 +137,10 @@ export const ChatPanel: React.FC<Props> = ({
                 );
               }
 
+              const sender = players.find(p => p.id === msg.senderId || p.name === msg.senderName);
+              const senderColor = sender?.color || (isMe ? currentPlayer.color : undefined) || '#F59E0B';
+              const senderAvatar = sender?.avatar || (isMe ? currentPlayer.avatar : undefined);
+
               return (
                 <motion.div
                   key={msg.id}
@@ -117,24 +148,36 @@ export const ChatPanel: React.FC<Props> = ({
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
                   transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                  className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                  className={`flex items-start gap-1.5 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
                 >
-                  <span className="text-[9px] text-neutral-500 font-bold px-1 mb-0.5">
-                    {msg.senderName} {isMe ? '(Você)' : ''}
-                    {msg.channel === 'SOLDIERS' && ' [Lobo]'}
-                  </span>
-                  <div
-                    className={`p-2 rounded-xl max-w-[85%] border leading-tight shadow-2xs transition-shadow ${
-                      isMe
-                        ? msg.channel === 'SOLDIERS'
-                          ? 'bg-black text-white border-black rounded-tr-none'
-                          : 'bg-neutral-900 text-white border-black rounded-tr-none'
-                        : msg.channel === 'SOLDIERS'
-                        ? 'bg-red-50 text-red-950 border-red-900/30 rounded-tl-none'
-                        : 'bg-neutral-100 text-black border-neutral-300 rounded-tl-none'
-                    }`}
-                  >
-                    {msg.text}
+                  <PersonAvatar
+                    avatar={senderAvatar}
+                    color={senderColor}
+                    seed={msg.senderName}
+                    size={26}
+                    className="mt-1 shrink-0"
+                  />
+                  <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[82%]`}>
+                    <span
+                      className="text-[9px] font-bold px-1 mb-0.5 flex items-center gap-1"
+                      style={{ color: senderColor }}
+                    >
+                      <span>{msg.senderName} {isMe ? '(Você)' : ''}</span>
+                      {msg.channel === 'SOLDIERS' && <span className="text-red-700">[Lobo]</span>}
+                    </span>
+                    <div
+                      className={`p-2 rounded-xl border leading-tight shadow-2xs transition-shadow ${
+                        isMe
+                          ? msg.channel === 'SOLDIERS'
+                            ? 'bg-black text-white border-black rounded-tr-none'
+                            : 'bg-neutral-900 text-white border-black rounded-tr-none'
+                          : msg.channel === 'SOLDIERS'
+                          ? 'bg-red-50 text-red-950 border-red-900/30 rounded-tl-none'
+                          : 'bg-neutral-100 text-black border-neutral-300 rounded-tl-none'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
                   </div>
                 </motion.div>
               );

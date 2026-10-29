@@ -309,12 +309,67 @@ function sanitizeRoomForClients(room: Room, forPlayerId?: string) {
       team: room.phase === 'GAME_OVER' ? p.team : undefined,
       modifier: room.phase === 'GAME_OVER' || (!p.isAlive && room.config.revealRolesOnDeath) ? p.modifier : undefined,
     })),
-    messages: room.messages,
+    messages:
+      self && !self.isAlive
+        ? room.messages.filter(
+            m =>
+              m.text?.startsWith('__SHEEP__:') ||
+              m.text?.startsWith('__PROF__:') ||
+              m.text?.startsWith('__PROFILE__:') ||
+              m.text === '__REQUEST_PROFILES__'
+          )
+        : room.messages,
     logs: room.logs,
   };
 }
 
 const BOT_NAMES = ['Gabriel', 'Mateus', 'Rebeca', 'Davi', 'Sara', 'Lucas', 'Ester', 'Samuel', 'Isaque', 'Raquel', 'Noé', 'Miriam'];
+
+const OFFICIAL_COLOR_PALETTE = [
+  '#F59E0B',
+  '#EF4444',
+  '#3B82F6',
+  '#10B981',
+  '#8B5CF6',
+  '#EC4899',
+  '#06B6D4',
+  '#F97316',
+  '#1F2937',
+];
+
+function resolveRoomPlayerColor(room: Room, desiredColor: string | undefined, excludePlayerId?: string): string {
+  const takenColors = room.players
+    .filter(p => p.id !== excludePlayerId && p.color)
+    .map(p => (p.color || '').trim().toUpperCase());
+
+  const usageCount = new Map<string, number>();
+  OFFICIAL_COLOR_PALETTE.forEach(hex => usageCount.set(hex, 0));
+
+  for (const c of takenColors) {
+    if (usageCount.has(c)) {
+      usageCount.set(c, (usageCount.get(c) || 0) + 1);
+    }
+  }
+
+  const unusedColors = OFFICIAL_COLOR_PALETTE.filter(hex => (usageCount.get(hex) || 0) === 0);
+  const normDesired = (desiredColor || '').trim().toUpperCase();
+
+  if (normDesired && OFFICIAL_COLOR_PALETTE.includes(normDesired)) {
+    const count = usageCount.get(normDesired) || 0;
+    if (count === 0) return normDesired;
+    // As cores só podem repetir se o número de jogadores for maior que o de cores (todas as cores ocupadas)
+    if (unusedColors.length === 0) return normDesired;
+  }
+
+  let pool = unusedColors;
+  if (pool.length === 0) {
+    const minUsage = Math.min(...Array.from(usageCount.values()));
+    pool = OFFICIAL_COLOR_PALETTE.filter(hex => (usageCount.get(hex) || 0) === minUsage);
+  }
+
+  const randomIndex = Math.floor(Math.random() * pool.length);
+  return pool[randomIndex] || OFFICIAL_COLOR_PALETTE[0];
+}
 
 async function startServer() {
   const app = express();
@@ -338,7 +393,7 @@ async function startServer() {
     next();
   });
 
-  app.use(express.json());
+  app.use(express.json({ limit: '5mb' }));
 
   // Endpoint de verificação de status do servidor
   app.get('/api/health', (_req, res) => {
@@ -350,7 +405,7 @@ async function startServer() {
   // ==========================================================================
   io.on('connection', (socket: Socket) => {
     // A) Criar Nova Sala (create-room)
-    socket.on('create-room', (data: { hostName?: string }, callback?: (res: any) => void) => {
+    socket.on('create-room', (data: { hostName?: string; color?: string; avatar?: string }, callback?: (res: any) => void) => {
       const hostName = (data?.hostName || '').trim();
       if (!hostName) {
         const err = { error: 'Por favor, escolha seu nome de jogador antes de criar a sala.' };
@@ -369,6 +424,8 @@ async function startServer() {
         id: hostId,
         socketId: socket.id,
         name: hostName,
+        color: data?.color || '#F59E0B',
+        avatar: data?.avatar || undefined,
         role: 'OVELHA',
         team: 'OVELHAS',
         isAlive: true,
@@ -444,7 +501,7 @@ async function startServer() {
     });
 
     // B) Entrar em Sala Existente (join-room)
-    socket.on('join-room', (data: { roomCode: string; playerName?: string; playerId?: string }, callback?: (res: any) => void) => {
+    socket.on('join-room', (data: { roomCode: string; playerName?: string; playerId?: string; color?: string; avatar?: string }, callback?: (res: any) => void) => {
       const code = (data?.roomCode || '').toUpperCase().trim();
       const playerName = (data?.playerName || '').trim();
 
@@ -478,6 +535,10 @@ async function startServer() {
       if (existingPlayer) {
         existingPlayer.socketId = socket.id;
         existingPlayer.disconnected = false;
+        if (data?.color || !existingPlayer.color) {
+          existingPlayer.color = resolveRoomPlayerColor(room, data?.color || existingPlayer.color, existingPlayer.id);
+        }
+        if (data?.avatar) existingPlayer.avatar = data.avatar;
         room.emptySince = undefined; // Retomou com jogador humano ativo
         socket.join(code);
 
@@ -526,10 +587,13 @@ async function startServer() {
       }
 
       const playerId = 'p_' + socket.id.substring(0, 7);
+      const resolvedColor = resolveRoomPlayerColor(room, data?.color, playerId);
       const newPlayer: Player = {
         id: playerId,
         socketId: socket.id,
         name: playerName,
+        color: resolvedColor,
+        avatar: data?.avatar || undefined,
         role: 'OVELHA',
         team: 'OVELHAS',
         isAlive: true,
@@ -566,6 +630,27 @@ async function startServer() {
 
       // Notificar todos na sala
       broadcastRoom(room);
+    });
+
+    // B3) Atualizar Avatar e Cor do Jogador em Tempo Real (update-profile)
+    socket.on('update-profile', (data: { roomCode: string; playerId: string; color?: string; avatar?: string }, callback?: (res: any) => void) => {
+      const code = (data?.roomCode || '').toUpperCase().trim();
+      const room = rooms.get(code);
+      if (!room) {
+        if (callback) callback({ success: false, error: 'Sala inexistente.' });
+        return;
+      }
+      const player = room.players.find(p => p.id === data?.playerId);
+      if (!player) {
+        if (callback) callback({ success: false, error: 'Jogador não encontrado na sala.' });
+        return;
+      }
+      if (data?.color) {
+        player.color = resolveRoomPlayerColor(room, data.color, player.id);
+      }
+      if (data?.avatar) player.avatar = data.avatar;
+      broadcastRoom(room);
+      if (callback) callback({ success: true, color: player.color });
     });
 
     // B2) Reconectar na Sala (reconnect-room)
@@ -653,7 +738,7 @@ async function startServer() {
         }
       }
       broadcastRoom(room);
-      if (callback) callback({ success: true });
+      if (callback) callback({ success: true, room: sanitizeRoomForClients(room, data.playerId) });
     });
 
     // C2) Confirmar Papel no Celular (ROLE_REVEAL)
@@ -683,7 +768,7 @@ async function startServer() {
       }
 
       broadcastRoom(room);
-      if (callback) callback({ success: true, phase: room.phase });
+      if (callback) callback({ success: true, phase: room.phase, room: sanitizeRoomForClients(room, data.playerId) });
     });
 
     // C3) Aprovar / Concluir Fase Atual (ready-phase)
@@ -703,7 +788,7 @@ async function startServer() {
       }
 
       broadcastRoom(room);
-      if (callback) callback({ success: true, phase: room.phase });
+      if (callback) callback({ success: true, phase: room.phase, room: sanitizeRoomForClients(room, data.playerId) });
     });
 
     // C4) Reiniciar Partida pelo Host (reset-game)
@@ -747,7 +832,7 @@ async function startServer() {
       });
 
       broadcastRoom(room);
-      if (callback) callback({ success: true });
+      if (callback) callback({ success: true, room: sanitizeRoomForClients(room, data.playerId) });
     });
 
     // C5) Adicionar Bots pelo Host (add-bot)
@@ -774,9 +859,11 @@ async function startServer() {
           botName = availableBackup[0] || `Irmão ${room.players.length + 1}`;
         }
         currentNames.add(botName);
+        const botColor = resolveRoomPlayerColor(room, undefined);
         const botPlayer: Player = {
           id: 'bot_' + Math.random().toString(36).substring(2, 9),
           name: botName,
+          color: botColor,
           role: 'OVELHA',
           team: 'OVELHAS',
           isAlive: true,
@@ -791,7 +878,7 @@ async function startServer() {
         room.players.push(botPlayer);
       }
       broadcastRoom(room);
-      if (callback) callback({ success: true, room: sanitizeRoomForClients(room) });
+      if (callback) callback({ success: true, room: sanitizeRoomForClients(room, room.hostId) });
     });
 
     // C6) Remover Bot pelo Host (remove-bot)
@@ -809,7 +896,31 @@ async function startServer() {
       }
       room.players.splice(botIndex, 1);
       broadcastRoom(room);
-      if (callback) callback({ success: true, room: sanitizeRoomForClients(room) });
+      if (callback) callback({ success: true, room: sanitizeRoomForClients(room, room.hostId) });
+    });
+
+    // C7) Evento das Ovelhas no Cercado de Espera (movimento e balido "MEH")
+    socket.on('sheep-event', (data: { roomCode: string; playerId: string; type: 'move' | 'baa'; x?: number; y?: number; facing?: 'left' | 'right'; text?: string; timestamp?: number }) => {
+      const code = (data?.roomCode || '').toUpperCase().trim();
+      if (!code) return;
+      const payload = {
+        playerId: data.playerId,
+        type: data.type,
+        x: data.x,
+        y: data.y,
+        facing: data.facing,
+        text: data.text,
+        timestamp: data.timestamp || Date.now(),
+      };
+      socket.to(code).emit('sheep-event', payload);
+      const room = rooms.get(code);
+      if (room) {
+        for (const p of room.players) {
+          if (p.socketId && p.socketId !== socket.id) {
+            io.to(p.socketId).emit('sheep-event', payload);
+          }
+        }
+      }
     });
 
     // D) Sair da Sala Voluntariamente (leave-room) vs Desconexão Passiva (disconnect)
@@ -932,6 +1043,8 @@ async function startServer() {
     const hostPlayer: Player = {
       id: hostId,
       name: hostName,
+      color: req.body.color || '#F59E0B',
+      avatar: req.body.avatar || undefined,
       role: 'OVELHA',
       team: 'OVELHAS',
       isAlive: true,
@@ -989,7 +1102,7 @@ async function startServer() {
       success: true,
       roomCode: code,
       playerId: hostId,
-      room: sanitizeRoomForClients(room),
+      room: sanitizeRoomForClients(room, hostId),
     });
   });
 
@@ -1019,6 +1132,10 @@ async function startServer() {
 
     if (existingPlayer) {
       existingPlayer.disconnected = false;
+      if (req.body.color || !existingPlayer.color) {
+        existingPlayer.color = resolveRoomPlayerColor(room, req.body.color || existingPlayer.color, existingPlayer.id);
+      }
+      if (req.body.avatar) existingPlayer.avatar = req.body.avatar;
       room.emptySince = undefined; // Retomou com humano ativo
 
       room.messages.push({
@@ -1054,9 +1171,12 @@ async function startServer() {
     }
 
     const playerId = 'p_' + Math.random().toString(36).substring(2, 9);
+    const resolvedColor = resolveRoomPlayerColor(room, req.body.color, playerId);
     const newPlayer: Player = {
       id: playerId,
       name: playerName,
+      color: resolvedColor,
+      avatar: req.body.avatar || undefined,
       role: 'OVELHA',
       team: 'OVELHAS',
       isAlive: true,
@@ -1189,9 +1309,11 @@ async function startServer() {
         botName = availableBackup[0] || `Irmão ${room.players.length + 1}`;
       }
       currentNames.add(botName);
+      const botColor = resolveRoomPlayerColor(room, undefined);
       const botPlayer: Player = {
         id: 'bot_' + Math.random().toString(36).substring(2, 9),
         name: botName,
+        color: botColor,
         role: 'OVELHA',
         team: 'OVELHAS',
         isAlive: true,
@@ -1207,7 +1329,7 @@ async function startServer() {
     }
 
     broadcastRoom(room);
-    res.json({ success: true, room: sanitizeRoomForClients(room) });
+    res.json({ success: true, room: sanitizeRoomForClients(room, room.hostId) });
   });
 
   // Remover último bot
@@ -1226,7 +1348,7 @@ async function startServer() {
 
     room.players.splice(botIndex, 1);
     broadcastRoom(room);
-    res.json({ success: true, room: sanitizeRoomForClients(room) });
+    res.json({ success: true, room: sanitizeRoomForClients(room, room.hostId) });
   });
 
   // Obter estado da sala
@@ -1244,39 +1366,8 @@ async function startServer() {
       return res.status(404).json({ error: 'Sala encerrada por inatividade (mais de 5 minutos sem jogadores).' });
     }
 
-    const player = room.players.find(p => p.id === playerId);
-    const sanitized = sanitizeRoomForClients(room);
-
-    res.json({
-      ...sanitized,
-      self: player ? {
-        id: player.id,
-        name: player.name,
-        role: player.role,
-        team: player.team,
-        isAlive: player.isAlive,
-        isHost: player.isHost,
-        prayersReceived: player.prayersReceived,
-        converted: player.converted,
-        hasActedTonight: player.hasActedTonight,
-        hasConfirmedRole: player.hasConfirmedRole,
-        hasApprovedPhase: player.hasApprovedPhase,
-        voteTargetId: player.voteTargetId,
-        nightActionTargetId: player.nightActionTargetId,
-        lastInspectionResult: player.lastInspectionResult,
-        modifier: player.modifier,
-        investigationCount: player.investigationCount,
-        spyUsed: player.spyUsed,
-        angelUsed: player.angelUsed,
-        angelSacrificeTonight: player.angelSacrificeTonight,
-        masterDoubleVotesRemaining: player.masterDoubleVotesRemaining,
-        usedDoubleVoteThisRound: player.usedDoubleVoteThisRound,
-        lastProtectedId: player.lastProtectedId,
-      } : null,
-      soldiersList: player && (player.team === 'SOLDADOS' || room.phase === 'GAME_OVER')
-        ? room.players.filter(p => p.team === 'SOLDADOS' && p.isAlive).map(p => ({ id: p.id, name: p.name }))
-        : [],
-    });
+    const sanitized = sanitizeRoomForClients(room, playerId);
+    res.json(sanitized);
   });
 
   // Stream SSE
@@ -1297,7 +1388,7 @@ async function startServer() {
     const client = { res, playerId };
     room.sseClients.push(client);
 
-    res.write(`data: ${JSON.stringify(sanitizeRoomForClients(room))}\n\n`);
+    res.write(`data: ${JSON.stringify(sanitizeRoomForClients(room, playerId))}\n\n`);
 
     req.on('close', () => {
       room.sseClients = room.sseClients.filter(c => c !== client);
@@ -1334,8 +1425,18 @@ async function startServer() {
     });
 
     simulateBotNightActions(room);
+    if (globalIo) {
+      for (const p of room.players) {
+        if (p.socketId) {
+          const clientSocket = globalIo.sockets.sockets.get(p.socketId);
+          if (clientSocket) {
+            clientSocket.emit('game-started', sanitizeRoomForClients(room, p.id));
+          }
+        }
+      }
+    }
     broadcastRoom(room);
-    res.json({ success: true, room: sanitizeRoomForClients(room) });
+    res.json({ success: true, room: sanitizeRoomForClients(room, playerId || room.hostId) });
   });
 
   // Confirmar leitura do papel no celular (ROLE_REVEAL)
@@ -1368,7 +1469,7 @@ async function startServer() {
     }
 
     broadcastRoom(room);
-    res.json({ success: true, phase: room.phase });
+    res.json({ success: true, phase: room.phase, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Aprovar / Concluir Fase Atual (DAY_ANNOUNCEMENT, DAY_DISCUSSION, DAY_RESULT)
@@ -1390,7 +1491,7 @@ async function startServer() {
     }
 
     broadcastRoom(room);
-    res.json({ success: true, phase: room.phase });
+    res.json({ success: true, phase: room.phase, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Chat
@@ -1407,19 +1508,41 @@ async function startServer() {
       return res.status(403).json({ error: 'Apenas soldados podem usar este canal.' });
     }
 
+    const trimmedText = (text || '').trim().substring(0, 300);
+    const isInternalSync =
+      trimmedText.startsWith('__SHEEP__:') ||
+      trimmedText.startsWith('__PROF__:') ||
+      trimmedText.startsWith('__PROFILE__:') ||
+      trimmedText === '__REQUEST_PROFILES__';
+
+    if (!isInternalSync && !player.isAlive) {
+      return res.status(403).json({ error: 'Jogadores eliminados não têm mais acesso ao chat da vila.' });
+    }
+
+    // Se for mensagem interna de sincronia de ovelha ou perfil, substitui a anterior do mesmo jogador para não inflar o array
+    if (trimmedText.startsWith('__SHEEP__:')) {
+      room.messages = room.messages.filter(
+        m => !(m.senderId === player.id && m.text.startsWith('__SHEEP__:'))
+      );
+    } else if (trimmedText.startsWith('__PROF__:')) {
+      room.messages = room.messages.filter(
+        m => !(m.senderId === player.id && m.text.startsWith('__PROF__:'))
+      );
+    }
+
     const newMsg: ChatMessage = {
       id: 'msg_' + Date.now() + Math.random().toString(36).substring(2, 6),
       senderId: player.id,
       senderName: player.name,
       senderRole: player.team === 'SOLDADOS' && channel === 'SOLDIERS' ? 'SOLDADO' : undefined,
-      text: text.trim().substring(0, 300),
+      text: trimmedText,
       timestamp: Date.now(),
       channel: channel as 'PUBLIC' | 'SOLDIERS',
     };
 
     room.messages.push(newMsg);
     broadcastRoom(room);
-    res.json({ success: true, message: newMsg });
+    res.json({ success: true, message: newMsg, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Atualizar avatar e cor do jogador
@@ -1432,11 +1555,41 @@ async function startServer() {
     const player = room.players.find(p => p.id === playerId);
     if (!player) return res.status(404).json({ error: 'Jogador não encontrado' });
 
-    if (color) player.color = color;
+    if (color) {
+      player.color = resolveRoomPlayerColor(room, color, player.id);
+    }
     if (avatar) player.avatar = avatar;
 
     broadcastRoom(room);
-    res.json({ success: true, room: sanitizeRoomForClients(room, playerId) });
+    res.json({ success: true, color: player.color, room: sanitizeRoomForClients(room, playerId) });
+  });
+
+  // Evento das Ovelhas no Cercado (fallback HTTP)
+  app.post('/api/rooms/:code/sheep-event', (req: Request, res: Response) => {
+    const code = req.params.code.toUpperCase();
+    const { playerId, type, x, y, facing, text, timestamp } = req.body;
+    const room = rooms.get(code);
+    if (!room) return res.status(404).json({ error: 'Sala inexistente' });
+
+    const payload = {
+      playerId,
+      type,
+      x,
+      y,
+      facing,
+      text,
+      timestamp: timestamp || Date.now(),
+    };
+
+    if (globalIo) {
+      globalIo.to(code).emit('sheep-event', payload);
+      for (const p of room.players) {
+        if (p.socketId) {
+          globalIo.to(p.socketId).emit('sheep-event', payload);
+        }
+      }
+    }
+    res.json({ success: true });
   });
 
   // Ação noturna
@@ -1502,7 +1655,7 @@ async function startServer() {
 
     checkAndResolveNightIfReady(room);
     broadcastRoom(room);
-    res.json({ success: true });
+    res.json({ success: true, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Habilidade do Espião (uso único)
@@ -1562,7 +1715,7 @@ async function startServer() {
     checkAndResolveVotesIfReady(room);
 
     broadcastRoom(room);
-    res.json({ success: true });
+    res.json({ success: true, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Avançar fase manualmente pelo Host (fallback)
@@ -1576,7 +1729,7 @@ async function startServer() {
 
     advanceRoomPhase(room);
     broadcastRoom(room);
-    res.json({ success: true, phase: room.phase });
+    res.json({ success: true, phase: room.phase, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Reiniciar sala pelo Host
@@ -1623,7 +1776,7 @@ async function startServer() {
     });
 
     broadcastRoom(room);
-    res.json({ success: true });
+    res.json({ success: true, room: sanitizeRoomForClients(room, playerId) });
   });
 
   // Reiniciar o jogo imediatamente com os mesmos jogadores (novos papéis distribuídos)
@@ -1684,8 +1837,18 @@ async function startServer() {
     });
 
     simulateBotNightActions(room);
+    if (globalIo) {
+      for (const p of room.players) {
+        if (p.socketId) {
+          const clientSocket = globalIo.sockets.sockets.get(p.socketId);
+          if (clientSocket) {
+            clientSocket.emit('game-started', sanitizeRoomForClients(room, p.id));
+          }
+        }
+      }
+    }
     broadcastRoom(room);
-    res.json({ success: true, room: sanitizeRoomForClients(room) });
+    res.json({ success: true, room: sanitizeRoomForClients(room, playerId || room.hostId) });
   });
 
   // Integração com Vite e Arquivos Estáticos em Produção

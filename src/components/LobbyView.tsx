@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Player, GameConfig, Role, ROLES_METADATA, ModifiersConfig } from '../types/game';
 import { sounds } from '../utils/audio';
 import { FourPointStar, SheepIllustration, RoleIllustration } from './RoleIllustrations';
+import { SheepCorralWaiting, SheepEventData, SyncedSheepData } from './SheepCorralWaiting';
 import {
   Users,
   Bot,
@@ -21,10 +22,10 @@ import {
   Sliders,
   LogOut,
   AlertTriangle,
-  Smile,
-  Palette,
 } from 'lucide-react';
 import { getMaxAllowedSoldiers, generateRecommendedDeck } from './LocalPlayersSetupModal';
+import { PersonAvatar, encodeAvatar, generateRandomCharacterConfig } from './PersonAvatar';
+import { AvatarCustomizerModal, pickRandomAvailableColor } from './AvatarCustomizerModal';
 
 interface Props {
   roomCode: string;
@@ -42,7 +43,11 @@ interface Props {
   onSwitchToLocalMode: () => void;
   onLeaveRoom?: () => void;
   myPlayerId?: string;
+  selfPlayer?: Player;
   onUpdateProfile?: (avatar: string, color: string) => void;
+  onSendSheepEvent?: (event: SheepEventData) => void;
+  incomingSheepEvent?: SheepEventData | null;
+  syncedSheepMap?: Record<string, SyncedSheepData>;
 }
 
 export const LobbyView: React.FC<Props> = ({
@@ -57,15 +62,20 @@ export const LobbyView: React.FC<Props> = ({
   onSwitchToLocalMode,
   onLeaveRoom,
   myPlayerId,
+  selfPlayer,
   onUpdateProfile,
+  onSendSheepEvent,
+  incomingSheepEvent,
+  syncedSheepMap,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
-  const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const [isBotBusy, setIsBotBusy] = useState(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'corral' | 'roster'>('corral');
 
   const handleAddBotClick = async (count: number) => {
     if (isBotBusy) return;
@@ -189,8 +199,42 @@ export const LobbyView: React.FC<Props> = ({
     onStartGame(buildDeck(), discussionSeconds, modifiersConfig);
   };
 
+  const savedLocalAvatar = (() => {
+    try {
+      return localStorage.getItem('custom_avatar_data') || undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+
+  const savedLocalColor = (() => {
+    try {
+      return localStorage.getItem('custom_avatar_color') || '#F59E0B';
+    } catch {
+      return '#F59E0B';
+    }
+  })();
+
+  const rawActivePlayer: Player =
+    selfPlayer ||
+    players.find(p => p.id === myPlayerId) ||
+    players[0] || {
+      id: myPlayerId || 'jogador_ativo',
+      name: 'Você',
+      role: 'OVELHA',
+      isAlive: true,
+      isBot: false,
+      isHost,
+    };
+
+  const activePlayer: Player = {
+    ...rawActivePlayer,
+    avatar: rawActivePlayer.avatar || savedLocalAvatar,
+    color: rawActivePlayer.color || savedLocalColor,
+  };
+
   return (
-    <div className="flex-1 flex flex-col justify-between p-2 sm:p-4 space-y-3 animate-fadeIn">
+    <div className="flex-1 flex flex-col justify-between p-2 sm:p-4 space-y-3 animate-fadeIn overflow-y-auto max-h-full">
       {/* Title & Room Badge */}
       <div className="text-center space-y-1">
         <div className="inline-block px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">
@@ -215,103 +259,250 @@ export const LobbyView: React.FC<Props> = ({
             <button
               onClick={handleCopyCode}
               title="Copiar Código"
-              className="p-1 border border-black rounded-lg hover:bg-black hover:text-white transition-colors"
+              className="p-1 border border-black rounded-lg hover:bg-black hover:text-white transition-colors cursor-pointer"
             >
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
           </div>
         </div>
+
+        {/* Banner de Perfil & Customização do Avatar do Jogador */}
+        <div className="pt-1.5 max-w-md mx-auto">
+          <div className="border-2 border-black rounded-2xl p-2.5 bg-white flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <PersonAvatar
+                avatar={activePlayer.avatar}
+                color={activePlayer.color || '#F59E0B'}
+                seed={activePlayer.name}
+                size={42}
+                className="border-2 border-black shrink-0"
+              />
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs truncate text-black">{activePlayer.name}</span>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
+                    style={{ backgroundColor: activePlayer.color || '#F59E0B' }}
+                    title="Cor do seu personagem"
+                  />
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-300">
+                    Você
+                  </span>
+                </div>
+                <p className="text-[10px] text-neutral-500 font-mono truncate">
+                  Personalize rosto, acessórios e sua cor
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  const otherColors = players
+                    .filter(p => p.id !== activePlayer.id)
+                    .map(p => p.color)
+                    .filter((c): c is string => Boolean(c));
+                  const randomColor = pickRandomAvailableColor(undefined, otherColors).color;
+                  const randomAvatar = encodeAvatar(generateRandomCharacterConfig());
+                  try {
+                    localStorage.setItem('custom_avatar_data', randomAvatar);
+                    localStorage.setItem('custom_avatar_color', randomColor);
+                  } catch {}
+                  onUpdateProfile?.(randomAvatar, randomColor);
+                }}
+                title="Gerar Avatar e Cor Aleatórios"
+                className="py-1.5 px-2.5 bg-amber-300 hover:bg-amber-400 border-2 border-black text-black rounded-xl text-[10px] font-mono font-black uppercase tracking-wider transition-transform active:scale-95 flex items-center gap-1 cursor-pointer shadow-xs"
+              >
+                <span>🎲 Aleatório</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  setIsAvatarModalOpen(true);
+                }}
+                className="py-1.5 px-3 bg-black text-white rounded-xl text-[10px] font-mono font-black uppercase tracking-wider hover:bg-neutral-800 transition-transform active:scale-95 flex items-center gap-1 cursor-pointer shadow-xs"
+              >
+                <Sparkles size={12} className="text-amber-400" />
+                <span>Avatar & Cor</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs de navegação entre o Minigame do Pasto e a Lista da Sala */}
+        <div className="pt-1 max-w-md mx-auto">
+          <div className="flex bg-neutral-100 p-1 rounded-2xl border-2 border-black gap-1 shadow-xs">
+            <button
+              type="button"
+              onClick={() => {
+                sounds.playClick();
+                setActiveTab('corral');
+              }}
+              className={`flex-1 py-2 px-2.5 rounded-xl font-mono text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'corral'
+                  ? 'bg-black text-white shadow-xs'
+                  : 'text-neutral-600 hover:text-black hover:bg-neutral-200'
+              }`}
+            >
+              <span>🪵 Aprisco do Rebanho</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${activeTab === 'corral' ? 'bg-white text-black' : 'bg-black text-white'}`}>
+                MEH! 🐑
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sounds.playClick();
+                setActiveTab('roster');
+              }}
+              className={`flex-1 py-2 px-2.5 rounded-xl font-mono text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'roster'
+                  ? 'bg-black text-white shadow-xs'
+                  : 'text-neutral-600 hover:text-black hover:bg-neutral-200'
+              }`}
+            >
+              <Users size={14} />
+              <span>Membros ({players.length}/16)</span>
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Hero Illustration */}
-      <div className="flex justify-center items-center py-0">
-        <SheepIllustration className="w-28 h-28 sm:w-32 sm:h-32" />
-      </div>
+      {/* ABA 1: O CERCADO DAS OVELHAS (MINIGAME DE ESPERA) */}
+      {activeTab === 'corral' && (
+        <div className="w-full space-y-2 animate-fadeIn">
+          <SheepCorralWaiting
+            currentPlayer={activePlayer}
+            allPlayers={players.length > 0 ? players : [activePlayer]}
+            title="Aprisco da Vila"
+            subtitle="Toque em qualquer lugar na tela para sua ovelhinha caminhar e aperte 'MEH'!"
+            waitingCountText={`${players.length}/16 ovelhas`}
+            isNight={false}
+            onSendSheepEvent={onSendSheepEvent}
+            incomingSheepEvent={incomingSheepEvent}
+            syncedSheepMap={syncedSheepMap}
+          />
 
-      {/* Players List */}
-      <div className="flex-1 flex flex-col space-y-1.5">
-        <div className="flex justify-between items-center px-1">
-          <span className="text-xs font-mono font-bold uppercase tracking-wider text-black flex items-center gap-1.5">
-            <Users size={14} />
-            <span>Membros Reunidos ({players.length}/16)</span>
-          </span>
+          {/* Barra de Acesso Rápido a Membros no Pasto */}
+          <div className="flex items-center justify-between p-2 bg-neutral-50 border-2 border-black rounded-2xl text-xs font-mono">
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-[230px] sm:max-w-xs py-0.5">
+              {players.map(p => (
+                <span
+                  key={p.id}
+                  title={`${p.name} ${p.isHost ? '(Host)' : ''}`}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 flex items-center gap-1 ${
+                    p.id === activePlayer.id
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-black border-black/30'
+                  }`}
+                >
+                  <PersonAvatar
+                    avatar={p.avatar}
+                    color={p.color || '#F59E0B'}
+                    seed={p.name}
+                    size={16}
+                    className="border border-black/30 shrink-0"
+                  />
+                  <span>{p.name}</span>
+                </span>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab('roster')}
+                className="py-1 px-2.5 border border-black bg-white rounded-xl text-[10px] font-bold hover:bg-neutral-100 cursor-pointer"
+              >
+                Ver Lista ({players.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ABA 2: LISTA DE MEMBROS REUNIDOS E DETALHES */}
+      {activeTab === 'roster' && (
+        <div className="flex-1 flex flex-col space-y-2 animate-fadeIn">
+          <div className="flex justify-between items-center px-1">
+            <span className="text-xs font-mono font-bold uppercase tracking-wider text-black flex items-center gap-1.5">
+              <Users size={14} />
+              <span>Membros Reunidos ({players.length}/16)</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50">
+            {players.map(p => {
+              const isMe = p.id === activePlayer.id;
+
+              return (
+                <div
+                  key={p.id}
+                  className={`p-2 bg-white border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all ${
+                    isMe ? 'border-2 border-black' : 'border-neutral-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 truncate min-w-0">
+                    <PersonAvatar
+                      avatar={p.avatar}
+                      color={p.color || '#F59E0B'}
+                      seed={p.name}
+                      size={24}
+                      className="border border-black/30 shrink-0"
+                    />
+                    <span className="font-bold truncate text-[11px]">{p.name}</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isMe && (
+                      <span className="text-[8px] bg-amber-500 text-black px-1 rounded font-mono font-black">
+                        Você
+                      </span>
+                    )}
+                    {p.isHost && (
+                      <span className="text-[8px] bg-black text-white px-1 py-0.2 rounded font-mono font-bold">
+                        Host
+                      </span>
+                    )}
+                    {p.isBot && (
+                      <span className="text-[8px] bg-neutral-200 text-black px-1 rounded font-mono">
+                        Bot
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           <button
             type="button"
-            onClick={() => setShowAvatarModal(true)}
-            className="text-[10px] font-mono bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-colors active:scale-95"
-            title="Escolha seu ícone e cor"
+            onClick={() => setActiveTab('corral')}
+            className="w-full py-2 bg-amber-50 border-2 border-amber-500 text-amber-950 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer"
           >
-            <Smile size={11} />
-            <span>Meu Avatar</span>
+            <span>🌾 Voltar para o Pasto das Ovelhas ("MEH!")</span>
           </button>
         </div>
-
-        <div className="grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50">
-          {players.map(p => {
-            const isMe = p.id === myPlayerId;
-            const defaultAvatar = p.isBot ? '🤖' : (p.isHost ? '👑' : '🐑');
-            const avatar = p.avatar || defaultAvatar;
-            const color = p.color || (p.isBot ? '#9CA3AF' : (p.isHost ? '#F59E0B' : '#6366F1'));
-
-            return (
-              <div
-                key={p.id}
-                onClick={() => {
-                  if (isMe) setShowAvatarModal(true);
-                }}
-                className={`p-2 bg-white border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all ${
-                  isMe ? 'border-2 border-amber-500 cursor-pointer hover:bg-amber-50/50' : 'border-neutral-300'
-                }`}
-                title={isMe ? 'Clique para mudar seu avatar e cor' : undefined}
-              >
-                <div className="flex items-center gap-1.5 truncate">
-                  <span
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] shrink-0 border border-black/20"
-                    style={{ backgroundColor: `${color}30`, borderColor: color }}
-                  >
-                    {avatar}
-                  </span>
-                  <span className="font-bold truncate text-[11px]">{p.name}</span>
-                </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  {isMe && (
-                    <span className="text-[8px] bg-amber-500 text-black px-1 rounded font-mono font-black">
-                      Você
-                    </span>
-                  )}
-                  {p.isHost && (
-                    <span className="text-[8px] bg-black text-white px-1 py-0.2 rounded font-mono font-bold">
-                      Host
-                    </span>
-                  )}
-                  {p.isBot && (
-                    <span className="text-[8px] bg-neutral-200 text-black px-1 rounded font-mono">
-                      Bot
-                    </span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      )}
 
       {/* Host Controls */}
-      <div className="space-y-2">
+      <div className="space-y-2 pt-1">
         {isHost && (
           <div className="space-y-2">
             <div className="flex gap-1.5 flex-wrap">
               <button
                 onClick={() => handleAddBotClick(1)}
                 disabled={isBotBusy || players.length >= 16}
-                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors"
+                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 <Bot size={13} /> +1 Bot
               </button>
               <button
                 onClick={() => handleAddBotClick(3)}
                 disabled={isBotBusy || players.length >= 14}
-                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors"
+                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 <UserPlus size={13} /> +3 Bots
               </button>
@@ -319,7 +510,7 @@ export const LobbyView: React.FC<Props> = ({
                 <button
                   onClick={handleRemoveBotClick}
                   disabled={isBotBusy}
-                  className="py-2 px-2.5 border-2 border-red-800 text-red-800 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-red-50 disabled:opacity-40 transition-colors"
+                  className="py-2 px-2.5 border-2 border-red-800 text-red-800 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-red-50 disabled:opacity-40 transition-colors cursor-pointer"
                   title="Remover último bot adicionado"
                 >
                   <Minus size={13} /> Bot
@@ -327,7 +518,7 @@ export const LobbyView: React.FC<Props> = ({
               )}
               <button
                 onClick={() => setShowConfigModal(true)}
-                className="py-2 px-3 border-2 border-black bg-neutral-100 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1.5 hover:bg-black hover:text-white transition-colors"
+                className="py-2 px-3 border-2 border-black bg-neutral-100 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1.5 hover:bg-black hover:text-white transition-colors cursor-pointer"
                 title="Configurar Baralho, Tempo e Modificadores"
               >
                 <Sliders size={13} />
@@ -340,7 +531,7 @@ export const LobbyView: React.FC<Props> = ({
         {/* Local mode fallback option */}
         <button
           onClick={onSwitchToLocalMode}
-          className="w-full py-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 text-neutral-800 hover:bg-neutral-100 transition-colors"
+          className="w-full py-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 text-neutral-800 hover:bg-neutral-100 transition-colors cursor-pointer"
         >
           <Phone size={13} />
           <span>Passar o Celular (Modo Local Offline)</span>
@@ -351,7 +542,7 @@ export const LobbyView: React.FC<Props> = ({
           <button
             onClick={handleStart}
             disabled={players.length < 5}
-            className={`w-full py-3.5 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest transition-transform ${
+            className={`w-full py-3.5 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest transition-transform cursor-pointer ${
               players.length >= 5
                 ? 'bg-black text-white active:scale-95 shadow-md hover:bg-neutral-800'
                 : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
@@ -367,7 +558,7 @@ export const LobbyView: React.FC<Props> = ({
           </button>
         ) : (
           <div className="text-center py-3 border-2 border-black rounded-full bg-neutral-100 text-xs font-mono font-bold text-neutral-700">
-            Aguardando o anfitrião configurar e iniciar a partida...
+            Aguardando o anfitrião configurar e iniciar a partida... (Divirta-se no pasto!)
           </div>
         )}
 
@@ -715,140 +906,21 @@ export const LobbyView: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Modal de Escolha de Avatar e Cor do Jogador */}
-      {showAvatarModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-xs animate-fadeIn font-mono">
-          <div className="w-full max-w-sm rounded-3xl bg-white border-3 border-black p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b-2 border-neutral-200">
-              <div className="flex items-center gap-2">
-                <Smile className="w-5 h-5 text-amber-500" />
-                <h3 className="font-sans font-black text-base uppercase text-black">
-                  Personalizar Avatar & Cor
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAvatarModal(false)}
-                className="p-1 rounded-lg text-neutral-500 hover:text-black hover:bg-neutral-100"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Preview do Avatar Atual */}
-            {(() => {
-              const myPlayer = players.find(p => p.id === myPlayerId);
-              const currentAvatar = myPlayer?.avatar || (myPlayer?.isHost ? '👑' : '🐑');
-              const currentColor = myPlayer?.color || '#F59E0B';
-
-              return (
-                <div className="flex flex-col items-center justify-center p-3 bg-neutral-100 rounded-2xl border border-neutral-300 space-y-1">
-                  <div
-                    className="w-16 h-16 rounded-full flex items-center justify-center text-3xl shadow-inner border-2 border-black/30 transition-transform active:scale-95"
-                    style={{ backgroundColor: `${currentColor}35`, borderColor: currentColor }}
-                  >
-                    {currentAvatar}
-                  </div>
-                  <span className="text-xs font-bold text-neutral-800">
-                    {myPlayer?.name || 'Seu Jogador'}
-                  </span>
-                  <span className="text-[10px] text-neutral-500">
-                    Visível para todos os jogadores na sala
-                  </span>
-                </div>
-              );
-            })()}
-
-            {/* Escolha do Ícone */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block">
-                Escolha seu Símbolo Bíblico / Rebanho:
-              </span>
-              <div className="grid grid-cols-6 gap-1.5 p-2 bg-neutral-50 border border-neutral-300 rounded-xl">
-                {['🐑', '🕊️', '🛡️', '⚔️', '👑', '📜', '🕯️', '🌾', '🍇', '📖', '🐟', '🌟'].map(icon => {
-                  const myPlayer = players.find(p => p.id === myPlayerId);
-                  const isSelected = (myPlayer?.avatar || (myPlayer?.isHost ? '👑' : '🐑')) === icon;
-
-                  return (
-                    <button
-                      key={icon}
-                      type="button"
-                      onClick={() => {
-                        sounds.playClick();
-                        const myPlayer = players.find(p => p.id === myPlayerId);
-                        if (onUpdateProfile) {
-                          onUpdateProfile(icon, myPlayer?.color || '#F59E0B');
-                        }
-                      }}
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg transition-transform active:scale-90 ${
-                        isSelected
-                          ? 'bg-amber-400 border-2 border-black shadow-xs scale-105'
-                          : 'bg-white border border-neutral-300 hover:bg-neutral-100'
-                      }`}
-                    >
-                      {icon}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Escolha da Cor */}
-            <div className="space-y-1.5">
-              <span className="text-[10px] uppercase font-bold text-neutral-600 block">
-                Escolha sua Cor de Identificação:
-              </span>
-              <div className="grid grid-cols-8 gap-1.5 p-2 bg-neutral-50 border border-neutral-300 rounded-xl">
-                {[
-                  '#F59E0B',
-                  '#10B981',
-                  '#06B6D4',
-                  '#6366F1',
-                  '#8B5CF6',
-                  '#F43F5E',
-                  '#F97316',
-                  '#1F2937',
-                ].map(hex => {
-                  const myPlayer = players.find(p => p.id === myPlayerId);
-                  const isSelected = (myPlayer?.color || '#F59E0B') === hex;
-
-                  return (
-                    <button
-                      key={hex}
-                      type="button"
-                      onClick={() => {
-                        sounds.playClick();
-                        const myPlayer = players.find(p => p.id === myPlayerId);
-                        const currentAvatar = myPlayer?.avatar || (myPlayer?.isHost ? '👑' : '🐑');
-                        if (onUpdateProfile) {
-                          onUpdateProfile(currentAvatar, hex);
-                        }
-                      }}
-                      className={`w-7 h-7 rounded-full border-2 transition-transform active:scale-90 flex items-center justify-center ${
-                        isSelected ? 'border-black scale-110 shadow-sm' : 'border-white/60 hover:scale-105'
-                      }`}
-                      style={{ backgroundColor: hex }}
-                    >
-                      {isSelected && <Check size={12} className="text-white drop-shadow-xs" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                sounds.playClick();
-                setShowAvatarModal(false);
-              }}
-              className="w-full py-2.5 rounded-xl bg-black text-white text-xs font-bold uppercase hover:bg-neutral-800 transition-colors shadow-xs"
-            >
-              Concluir & Salvar
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Modal de Personalização de Avatar & Cor */}
+      <AvatarCustomizerModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        avatar={activePlayer.avatar}
+        color={activePlayer.color || '#F59E0B'}
+        playerName={activePlayer.name}
+        takenColors={players
+          .filter(p => p.id !== activePlayer.id)
+          .map(p => p.color)
+          .filter((c): c is string => Boolean(c))}
+        onSave={(newAvatar, newColor) => {
+          onUpdateProfile?.(newAvatar, newColor);
+        }}
+      />
     </div>
   );
 };

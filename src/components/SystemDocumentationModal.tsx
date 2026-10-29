@@ -413,118 +413,132 @@ export const SystemDocumentationModal: React.FC<Props> = ({ isOpen, onClose }) =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 animate-fadeIn">
-      <div className="bg-white border-[4px] border-black rounded-[32px] w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 md:p-6 animate-fadeIn">
+      <div className="bg-white border-2 sm:border-[3px] border-black rounded-2xl sm:rounded-[28px] w-full max-w-4xl h-[94vh] sm:h-[88vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b-2 border-black bg-neutral-50">
-          <div className="flex items-center space-x-2">
-            <FourPointStar size={18} className="text-black" />
-            <h2 className="text-lg sm:text-xl font-black uppercase tracking-wider text-black font-sans">
-              Manual do Sistema & Código Python
+        <div className="flex items-center justify-between px-3.5 sm:px-6 py-2.5 sm:py-3.5 border-b-2 border-black bg-neutral-50 shrink-0">
+          <div className="flex items-center space-x-2 min-w-0 pr-2">
+            <FourPointStar size={16} className="text-black shrink-0 hidden sm:inline-block" />
+            <h2 className="text-sm sm:text-lg font-black uppercase tracking-wider text-black font-sans truncate leading-tight">
+              <span className="sm:hidden">Regras & Manual</span>
+              <span className="hidden sm:inline">Manual do Sistema & Código Python</span>
             </h2>
-            <FourPointStar size={18} className="text-black" />
+            <FourPointStar size={16} className="text-black shrink-0 hidden sm:inline-block" />
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 border-2 border-black rounded-full flex items-center justify-center hover:bg-black hover:text-white transition-colors"
+            className="w-8 h-8 sm:w-9 sm:h-9 border-2 border-black rounded-xl flex items-center justify-center hover:bg-black hover:text-white transition-colors shrink-0 active:scale-95 cursor-pointer"
+            title="Fechar Manual"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex border-b-2 border-black bg-white overflow-x-auto no-scrollbar px-4 pt-2 gap-2 text-xs font-mono font-bold uppercase tracking-wider">
+        {/* Navigation Tabs com rolagem horizontal suave no celular */}
+        <div className="flex border-b-2 border-black bg-neutral-100 overflow-x-auto no-scrollbar px-2 sm:px-4 pt-1.5 sm:pt-2 gap-1.5 sm:gap-2 shrink-0">
           <button
             onClick={() => setActiveTab('REGRAS')}
-            className={`px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 ${
-              activeTab === 'REGRAS' ? 'bg-black text-white' : 'bg-gray-100 text-black hover:bg-gray-200'
+            className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer ${
+              activeTab === 'REGRAS' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-200'
             }`}
           >
-            <BookOpen size={14} /> Regras & Balanceamento
+            <BookOpen size={14} className="shrink-0" />
+            <span>Regras</span>
+            <span className="hidden sm:inline">& Balanceamento</span>
           </button>
           <button
             onClick={() => setActiveTab('PIPELINE')}
-            className={`px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 ${
-              activeTab === 'PIPELINE' ? 'bg-black text-white' : 'bg-gray-100 text-black hover:bg-gray-200'
+            className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer ${
+              activeTab === 'PIPELINE' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-200'
             }`}
           >
-            <Cpu size={14} /> Pipeline Noturno
+            <Cpu size={14} className="shrink-0" />
+            <span>Pipeline</span>
+            <span className="hidden sm:inline">Noturno</span>
           </button>
           <button
             onClick={() => setActiveTab('PYTHON')}
-            className={`px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 ${
-              activeTab === 'PYTHON' ? 'bg-black text-white' : 'bg-gray-100 text-black hover:bg-gray-200'
+            className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer ${
+              activeTab === 'PYTHON' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-200'
             }`}
           >
-            <Code2 size={14} /> Código Python
+            <Code2 size={14} className="shrink-0" />
+            <span>Python</span>
+            <span className="hidden sm:inline">(.py)</span>
           </button>
           <button
             onClick={() => setActiveTab('CASOS')}
-            className={`px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 ${
-              activeTab === 'CASOS' ? 'bg-black text-white' : 'bg-gray-100 text-black hover:bg-gray-200'
+            className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer ${
+              activeTab === 'CASOS' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-200'
             }`}
           >
-            <ShieldAlert size={14} /> Casos de Borda
+            <ShieldAlert size={14} className="shrink-0" />
+            <span>Casos de Borda</span>
           </button>
           <button
             onClick={() => setActiveTab('SOCKET_IO')}
-            className={`px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 ${
-              activeTab === 'SOCKET_IO' ? 'bg-black text-white' : 'bg-gray-100 text-black hover:bg-gray-200'
+            className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-2 rounded-t-xl border-t-2 border-x-2 border-black transition-colors flex items-center gap-1.5 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer ${
+              activeTab === 'SOCKET_IO' ? 'bg-black text-white' : 'bg-white text-black hover:bg-neutral-200'
             }`}
           >
-            <Cpu size={14} /> Rede & Socket.IO
+            <Cpu size={14} className="shrink-0" />
+            <span>Socket.IO</span>
+            <span className="hidden sm:inline">& Rede</span>
           </button>
         </div>
 
         {/* Tab Content */}
-        <div className="flex-1 overflow-y-auto p-6 font-mono text-sm leading-relaxed space-y-4">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-6 font-mono text-xs sm:text-sm leading-relaxed space-y-4 overscroll-contain">
           {activeTab === 'REGRAS' && (
-            <div className="space-y-6 text-black">
+            <div className="space-y-5 text-black">
               <section className="space-y-2">
-                <h3 className="text-base font-black uppercase tracking-wider flex items-center gap-2 border-b-2 border-black pb-1">
+                <h3 className="text-sm sm:text-base font-black uppercase tracking-wider flex items-center gap-1.5 border-b-2 border-black pb-1">
                   <span>✦</span> 1. Proporção Ideal de Jogadores (Presets de Equilíbrio)
                 </h3>
                 <p className="text-xs text-neutral-700">
                   Para manter a tensão equilibrada, a proporção recomendada de Soldados é entre 20% e 28% dos participantes.
                 </p>
-                <div className="border-2 border-black rounded-xl overflow-hidden mt-2 text-xs">
-                  <table className="w-full text-left">
+                <div className="border-2 border-black rounded-xl overflow-x-auto mt-2 text-xs shadow-xs">
+                  <table className="w-full min-w-[500px] text-left">
                     <thead className="bg-black text-white uppercase text-[10px] tracking-wider">
                       <tr>
-                        <th className="p-2 border-r border-white/20">Jogadores</th>
-                        <th className="p-2 border-r border-white/20">Soldados</th>
-                        <th className="p-2 border-r border-white/20">Especiais (Ovelhas)</th>
-                        <th className="p-2">Ovelhas Comuns</th>
+                        <th className="p-2.5 border-r border-white/20 whitespace-nowrap">Jogadores</th>
+                        <th className="p-2.5 border-r border-white/20 whitespace-nowrap">Soldados</th>
+                        <th className="p-2.5 border-r border-white/20 whitespace-nowrap">Especiais (Ovelhas)</th>
+                        <th className="p-2.5 whitespace-nowrap">Ovelhas Comuns</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-black/20">
+                    <tbody className="divide-y divide-black/20 text-[11px] sm:text-xs">
                       <tr>
-                        <td className="p-2 font-bold">5 a 6</td>
-                        <td className="p-2">1 Soldado</td>
-                        <td className="p-2">Pastor, Evangelista, Apóstolo, Profeta</td>
-                        <td className="p-2">0 a 1 (+ Mestre se 6)</td>
+                        <td className="p-2.5 font-bold">5 a 6</td>
+                        <td className="p-2.5">1 Soldado</td>
+                        <td className="p-2.5">Pastor, Evangelista, Apóstolo, Profeta</td>
+                        <td className="p-2.5">0 a 1 (+ Mestre se 6)</td>
                       </tr>
                       <tr className="bg-neutral-50">
-                        <td className="p-2 font-bold">7 a 8</td>
-                        <td className="p-2">2 Soldados</td>
-                        <td className="p-2">Pastor, Evangelista, Apóstolo, Profeta, Mestre</td>
-                        <td className="p-2">0 a 1 Ovelha comum</td>
+                        <td className="p-2.5 font-bold">7 a 8</td>
+                        <td className="p-2.5">2 Soldados</td>
+                        <td className="p-2.5">Pastor, Evangelista, Apóstolo, Profeta, Mestre</td>
+                        <td className="p-2.5">0 a 1 Ovelha comum</td>
                       </tr>
                       <tr>
-                        <td className="p-2 font-bold">9 a 11</td>
-                        <td className="p-2">2 a 3 Soldados</td>
-                        <td className="p-2">Pastor, Evangelista, Apóstolo, Profeta, Mestre</td>
-                        <td className="p-2">2 a 3 Ovelhas comuns</td>
+                        <td className="p-2.5 font-bold">9 a 11</td>
+                        <td className="p-2.5">2 a 3 Soldados</td>
+                        <td className="p-2.5">Pastor, Evangelista, Apóstolo, Profeta, Mestre</td>
+                        <td className="p-2.5">2 a 3 Ovelhas comuns</td>
                       </tr>
                       <tr className="bg-neutral-50">
-                        <td className="p-2 font-bold">12 a 16</td>
-                        <td className="p-2">3 a 4 Soldados</td>
-                        <td className="p-2">Pastor, Evangelista, Apóstolo, Profeta, Mestre</td>
-                        <td className="p-2">4 a 7 Ovelhas comuns</td>
+                        <td className="p-2.5 font-bold">12 a 16</td>
+                        <td className="p-2.5">3 a 4 Soldados</td>
+                        <td className="p-2.5">Pastor, Evangelista, Apóstolo, Profeta, Mestre</td>
+                        <td className="p-2.5">4 a 7 Ovelhas comuns</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
+                <span className="text-[10px] font-mono text-neutral-500 sm:hidden block mt-1">
+                  ↔ Deslize a tabela para o lado para ver todas as colunas
+                </span>
               </section>
 
               <section className="space-y-2">
@@ -633,27 +647,27 @@ export const SystemDocumentationModal: React.FC<Props> = ({ isOpen, onClose }) =
 
           {activeTab === 'PYTHON' && (
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                 <span className="text-xs font-bold uppercase tracking-wider text-black">
                   Script Python Completo e Autônomo (vila_das_ovelhas.py)
                 </span>
-                <div className="flex gap-2">
+                <div className="flex gap-2 w-full sm:w-auto">
                   <button
                     onClick={handleCopy}
-                    className="border-2 border-black px-3 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-1 hover:bg-black hover:text-white transition-colors"
+                    className="flex-1 sm:flex-none border-2 border-black px-3 py-1.5 rounded-full text-xs font-bold uppercase flex items-center justify-center gap-1 hover:bg-black hover:text-white transition-colors cursor-pointer active:scale-95"
                   >
                     {copied ? <Check size={14} /> : <Copy size={14} />}
                     {copied ? 'Copiado!' : 'Copiar'}
                   </button>
                   <button
                     onClick={handleDownload}
-                    className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold uppercase flex items-center gap-1 hover:bg-neutral-800 transition-colors"
+                    className="flex-1 sm:flex-none bg-black text-white px-3 py-1.5 rounded-full text-xs font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-800 transition-colors cursor-pointer active:scale-95"
                   >
                     <Download size={14} /> Baixar .py
                   </button>
                 </div>
               </div>
-              <pre className="bg-neutral-900 text-neutral-100 p-4 rounded-2xl overflow-x-auto text-[11px] font-mono border-2 border-black max-h-[450px]">
+              <pre className="bg-neutral-900 text-neutral-100 p-3 sm:p-4 rounded-2xl overflow-x-auto text-[10px] sm:text-[11px] font-mono border-2 border-black max-h-[50vh] sm:max-h-[450px]">
                 {PYTHON_SOURCE_CODE}
               </pre>
             </div>
@@ -872,10 +886,13 @@ server.listen(3000, () => console.log('Servidor rodando na porta 3000'));`}</pre
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t-2 border-black bg-neutral-50 flex justify-end">
+        <div className="px-3.5 sm:px-6 py-2.5 sm:py-3 border-t-2 border-black bg-neutral-50 flex items-center justify-between gap-2 shrink-0">
+          <span className="text-[11px] font-mono text-neutral-500 hidden sm:inline">
+            Infiltrado na Fé • Manual e Regras
+          </span>
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-black text-white rounded-full font-black text-xs uppercase tracking-wider hover:bg-neutral-800 transition-colors"
+            className="w-full sm:w-auto px-6 py-2.5 bg-black text-white rounded-full font-black text-xs uppercase tracking-wider hover:bg-neutral-800 transition-colors cursor-pointer text-center active:scale-95"
           >
             Fechar Manual
           </button>

@@ -8,6 +8,8 @@ import {
   GameConfig,
   ModifiersConfig,
 } from '../types/game';
+import { encodeAvatar, getRandomAvatar } from '../components/PersonAvatar';
+import { pickRandomAvailableColor } from '../components/AvatarCustomizerModal';
 
 const BOT_NAMES = [
   'Gabriel',
@@ -44,7 +46,9 @@ export const DEFAULT_MODIFIERS_CONFIG: ModifiersConfig = {
 
 export function createInitialLocalGame(
   humanPlayerName: string = 'Você',
-  totalPlayers: number = 7
+  totalPlayers: number = 7,
+  humanAvatar?: string,
+  humanColor?: string
 ): LocalGameState {
   const config: GameConfig = {
     revealRolesOnDeath: false,
@@ -56,11 +60,15 @@ export function createInitialLocalGame(
   };
 
   const players: Player[] = [];
+  const cleanHumanName = humanPlayerName.trim() || 'Você';
+  const initialHumanColor = pickRandomAvailableColor(humanColor || '#F59E0B', []).color;
 
   // Human player
   players.push({
     id: 'p_human',
-    name: humanPlayerName.trim() || 'Você',
+    name: cleanHumanName,
+    avatar: humanAvatar || encodeAvatar(getRandomAvatar(cleanHumanName)),
+    color: initialHumanColor,
     role: 'OVELHA',
     team: 'OVELHAS',
     isAlive: true,
@@ -80,12 +88,16 @@ export function createInitialLocalGame(
     angelSacrificeTonight: false,
   });
 
-  // Bots
+  // Bots com avatares e cores únicas (só repetem se totalPlayers > número de cores)
   for (let i = 1; i < totalPlayers; i++) {
     const name = BOT_NAMES[i - 1] || `Irmão ${i + 1}`;
+    const taken = players.map(p => p.color).filter((c): c is string => Boolean(c));
+    const botColor = pickRandomAvailableColor(undefined, taken).color;
     players.push({
       id: `p_bot_${i}`,
       name,
+      avatar: encodeAvatar(getRandomAvatar(name)),
+      color: botColor,
       role: 'OVELHA',
       team: 'OVELHAS',
       isAlive: true,
@@ -144,7 +156,8 @@ export function createLocalGameFromRoster(
   roster: string[],
   customDeck?: Role[],
   customDiscussionSeconds: number = 120,
-  customModifiersConfig?: ModifiersConfig
+  customModifiersConfig?: ModifiersConfig,
+  playerProfiles?: Record<string, { color?: string; avatar?: string }>
 ): LocalGameState {
   const modifiersConfig: ModifiersConfig = customModifiersConfig
     ? { ...customModifiersConfig }
@@ -159,27 +172,36 @@ export function createLocalGameFromRoster(
     modifiersConfig,
   };
 
-  const players: Player[] = roster.map((name, idx) => ({
-    id: `local_p_${idx}_${Math.random().toString(36).substring(2, 6)}`,
-    name: name.trim() || `Jogador ${idx + 1}`,
-    role: 'OVELHA',
-    team: 'OVELHAS',
-    isAlive: true,
-    isHost: idx === 0,
-    isBot: false,
-    prayersReceived: 0,
-    converted: false,
-    hasActedTonight: false,
-    voteTargetId: null,
-    nightActionTargetId: null,
-    masterDoubleVotesRemaining: 0,
-    usedDoubleVoteThisRound: false,
-    modifier: null,
-    investigationCount: 0,
-    spyUsed: false,
-    angelUsed: false,
-    angelSacrificeTonight: false,
-  }));
+  const assignedColors: string[] = [];
+  const players: Player[] = roster.map((name, idx) => {
+    const cleanName = name.trim() || `Jogador ${idx + 1}`;
+    const profile = playerProfiles?.[cleanName] || playerProfiles?.[name];
+    const chosenColor = pickRandomAvailableColor(profile?.color, assignedColors, cleanName).color;
+    assignedColors.push(chosenColor);
+    return {
+      id: `local_p_${idx}_${Math.random().toString(36).substring(2, 6)}`,
+      name: cleanName,
+      color: chosenColor,
+      avatar: profile?.avatar || encodeAvatar(getRandomAvatar(cleanName)),
+      role: 'OVELHA',
+      team: 'OVELHAS',
+      isAlive: true,
+      isHost: idx === 0,
+      isBot: false,
+      prayersReceived: 0,
+      converted: false,
+      hasActedTonight: false,
+      voteTargetId: null,
+      nightActionTargetId: null,
+      masterDoubleVotesRemaining: 0,
+      usedDoubleVoteThisRound: false,
+      modifier: null,
+      investigationCount: 0,
+      spyUsed: false,
+      angelUsed: false,
+      angelSacrificeTonight: false,
+    };
+  });
 
   if (customDeck && customDeck.length === players.length) {
     const shuffled = [...customDeck];

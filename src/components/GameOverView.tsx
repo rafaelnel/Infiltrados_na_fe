@@ -3,6 +3,7 @@ import { Team, Player } from '../types/game';
 import { RoleIllustration, FourPointStar } from './RoleIllustrations';
 import { Trophy, RefreshCw, Users, Shield } from 'lucide-react';
 import { sounds } from '../utils/audio';
+import { PersonAvatar } from './PersonAvatar';
 
 interface Props {
   winner: Team;
@@ -58,7 +59,16 @@ export const GameOverView: React.FC<Props> = ({ winner, players, onRestart, isHo
             <tbody className="divide-y divide-black/20">
               {players.map(p => (
                 <tr key={p.id} className={p.team === 'SOLDADOS' ? 'bg-red-50/50' : ''}>
-                  <td className="p-1.5 font-bold truncate">{p.name}</td>
+                  <td className="p-1.5 font-bold truncate flex items-center gap-1.5 min-w-0">
+                    <PersonAvatar
+                      avatar={p.avatar}
+                      color={p.color || '#F59E0B'}
+                      seed={p.name}
+                      size={20}
+                      className="border border-black/30 shrink-0"
+                    />
+                    <span className="truncate">{p.name}</span>
+                  </td>
                   <td className="p-1.5">
                     <span className="font-bold">{p.role}</span>
                   </td>
