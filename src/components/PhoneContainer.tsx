@@ -175,9 +175,9 @@ export const PhoneContainer: React.FC<Props> = ({
       </header>
 
       {/* Main Game Arena - LAYOUT NORMAL SEM MOLDURA DE CELULAR */}
-      <main className="flex-1 w-full max-w-4xl mx-auto p-3 sm:p-6 flex flex-col justify-center">
+      <main className="flex-1 w-full max-w-4xl mx-auto p-2 sm:p-4 flex flex-col justify-center">
         <div
-          className={`w-full transition-all duration-700 rounded-3xl overflow-hidden min-h-[580px] sm:min-h-[640px] flex flex-col p-4 sm:p-6 shadow-2xl relative ${
+          className={`w-full transition-all duration-700 rounded-3xl overflow-hidden flex flex-col p-3 sm:p-5 shadow-2xl relative ${
             isNight
               ? 'bg-gradient-to-b from-[#0E172E] via-[#0B132B] to-[#070D1E] border-2 border-indigo-500/50 text-white shadow-indigo-950/60 shadow-[0_0_50px_rgba(79,70,229,0.12)]'
               : 'bg-gradient-to-b from-white via-neutral-50/95 to-white border-2 sm:border-[3px] border-black text-black shadow-xl shadow-stone-900/10 shadow-[0_0_50px_rgba(245,158,11,0.06)]'

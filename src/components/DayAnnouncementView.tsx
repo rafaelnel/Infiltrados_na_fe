@@ -248,30 +248,61 @@ export const DayAnnouncementView: React.FC<Props> = ({
           transition={{ delay: 0.12, type: 'spring', damping: 24, stiffness: 260 }}
           className="flex-1 flex flex-col justify-center space-y-3"
         >
-          {/* Death or Peaceful Night Box */}
+          {/* Death, Protection or Peaceful Night Box */}
           {deathLog ? (
-            <div className="border-4 border-black p-4 rounded-3xl bg-neutral-50/95 backdrop-blur-xs text-center space-y-2 shadow-lg">
-              <div className="w-12 h-12 rounded-full bg-black text-white flex items-center justify-center mx-auto shadow-md">
-                <ShieldAlert size={24} className="text-red-400" />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className={`border-4 border-black p-5 rounded-3xl text-center space-y-3 shadow-2xl ${
+                deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
+                  ? 'bg-amber-100/95 border-amber-800'
+                  : 'bg-red-50/95 border-red-950'
+              }`}
+            >
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto shadow-lg border-2 border-black ${
+                deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
+                  ? 'bg-amber-500 text-black'
+                  : 'bg-red-600 text-white animate-bounce'
+              }`}>
+                <ShieldAlert size={28} className={deathLog.text.includes('PROTEGIDO') ? 'text-black' : 'text-white'} />
               </div>
-              <h3 className="text-sm font-black uppercase text-black font-mono">
-                Tragédia na Calada da Noite
-              </h3>
-              <p className="text-xs font-mono text-neutral-800 leading-relaxed font-bold">
-                {deathLog.text}
-              </p>
-            </div>
+              <div className="space-y-1">
+                <span className={`inline-block px-3 py-1 rounded-full text-xs font-mono font-black uppercase tracking-wider border ${
+                  deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
+                    ? 'bg-amber-200 text-amber-900 border-amber-400'
+                    : 'bg-red-200 text-red-900 border-red-400'
+                }`}>
+                  {deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO') ? '🛡️ AÇÃO DE PROTEÇÃO' : '⚠️ ALERTA DE ELIMINAÇÃO'}
+                </span>
+                <h3 className="text-base sm:text-lg font-black uppercase text-black font-mono tracking-tight">
+                  {deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO') ? 'Alvo Protegido com Sucesso!' : 'Tragédia na Calada da Noite'}
+                </h3>
+              </div>
+              <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-inner">
+                <p className="text-sm sm:text-base font-mono text-neutral-900 leading-relaxed font-black tracking-wide">
+                  {deathLog.text}
+                </p>
+              </div>
+            </motion.div>
           ) : (
-            <div className="border-4 border-black p-4 rounded-3xl bg-amber-50/90 backdrop-blur-xs text-center space-y-2 shadow-lg border-amber-950">
-              <div className="w-12 h-12 rounded-full bg-amber-500 text-black flex items-center justify-center mx-auto shadow-md border-2 border-black">
-                <Heart size={24} className="fill-white text-white" />
+            <div className="border-4 border-black p-5 rounded-3xl bg-amber-50/95 backdrop-blur-xs text-center space-y-3 shadow-2xl border-amber-950">
+              <div className="w-14 h-14 rounded-full bg-amber-500 text-black flex items-center justify-center mx-auto shadow-lg border-2 border-black">
+                <Heart size={28} className="fill-white text-white" />
               </div>
-              <h3 className="text-sm font-black uppercase text-black font-mono">
-                Uma Noite Abençoada
-              </h3>
-              <p className="text-xs font-mono text-neutral-800 leading-relaxed font-bold">
-                Nenhum membro da congregação faleceu esta noite! A vigilância do Pastor e as orações guardaram os inocentes.
-              </p>
+              <div className="space-y-1">
+                <span className="inline-block px-3 py-1 bg-amber-200 text-amber-900 rounded-full text-xs font-mono font-black uppercase tracking-wider border border-amber-400">
+                  🛡️ VIGÍLIA ABENÇOADA
+                </span>
+                <h3 className="text-base sm:text-lg font-black uppercase text-black font-mono tracking-tight">
+                  Uma Noite em Paz
+                </h3>
+              </div>
+              <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-inner">
+                <p className="text-sm sm:text-base font-mono text-neutral-900 leading-relaxed font-black">
+                  Nenhum membro da congregação faleceu esta noite! A vigilância do Pastor e as orações guardaram os inocentes.
+                </p>
+              </div>
             </div>
           )}
 

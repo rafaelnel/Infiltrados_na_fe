@@ -1666,8 +1666,8 @@ async function startServer() {
 
     if (!room) return res.status(404).json({ error: 'Sala inexistente' });
     const player = room.players.find(p => p.id === playerId);
-    if (!player || player.modifier !== 'ESPIAO' || player.spyUsed) {
-      return res.status(400).json({ error: 'Habilidade de Espião indisponível ou já utilizada.' });
+    if (!player || player.modifier !== 'ESPIAO') {
+      return res.status(400).json({ error: 'Jogador não é espião.' });
     }
 
     const target = room.players.find(p => p.id === targetId);
@@ -1677,6 +1677,7 @@ async function startServer() {
     res.json({
       success: true,
       targetRole: target.role,
+      targetTeam: target.team,
       targetName: target.name,
     });
   });
@@ -2177,12 +2178,15 @@ function resolveNightActions(room: Room) {
 
   let victimName: string | null = null;
   if (killTargetId) {
+    const targetCandidate = room.players.find(p => p.id === killTargetId);
+    const targetName = targetCandidate ? targetCandidate.name : 'O alvo';
+
     if (killTargetId === protectedTargetId) {
       room.logs.push({
         id: 'log_' + Date.now(),
         phase: 'NIGHT',
         dayNumber: room.dayNumber,
-        text: `🛡️ Proteção Divina: O Pastor protegeu o alvo dos Soldados! Ninguém faleceu esta noite.`,
+        text: `🛡️ PROTEÇÃO DIVINA: ${targetName} ESTÁ PROTEGIDO! O Pastor abençoou e guardou o alvo contra o ataque dos Soldados!`,
         timestamp: Date.now(),
         type: 'INFO',
       });
@@ -2197,7 +2201,7 @@ function resolveNightActions(room: Room) {
         id: 'log_' + Date.now(),
         phase: 'NIGHT',
         dayNumber: room.dayNumber,
-        text: `👼 Sacrifício de Amor: O Anjo (${angel.name}) deu sua própria vida para salvar ${savedTarget?.name || 'um irmão'} da lâmina dos Soldados!`,
+        text: `👼 SACRIFÍCIO HEROICO: O Anjo (${angel.name}) deu sua própria vida para salvar ${savedTarget?.name || 'um irmão'} da lâmina dos Soldados! ${targetName} ESTÁ SALVO E PROTEGIDO!`,
         timestamp: Date.now(),
         type: 'DEATH',
       });
@@ -2210,12 +2214,21 @@ function resolveNightActions(room: Room) {
           id: 'log_' + Date.now(),
           phase: 'NIGHT',
           dayNumber: room.dayNumber,
-          text: `💀 Tragédia: ${victim.name} foi eliminado na calada da noite! Sua função permanece oculta em segredo.`,
+          text: `💀 TRAGÉDIA: ${victim.name} FOI ELIMINADO PELOS SOLDADOS DURANTE A NOITE! Sua função permanece oculta em segredo.`,
           timestamp: Date.now(),
           type: 'DEATH',
         });
       }
     }
+  } else {
+    room.logs.push({
+      id: 'log_' + Date.now(),
+      phase: 'NIGHT',
+      dayNumber: room.dayNumber,
+      text: `✨ NOITE PACÍFICA: Nenhum ataque foi efetuado pelos Soldados nesta noite. O rebanho repousou em segurança.`,
+      timestamp: Date.now(),
+      type: 'INFO',
+    });
   }
 
   const winner = checkGameOver(room);

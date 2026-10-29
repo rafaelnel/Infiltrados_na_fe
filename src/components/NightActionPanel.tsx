@@ -29,6 +29,7 @@ interface Props {
     angelSacrificeTonight?: boolean,
     spyData?: { targetId: string; result: string }
   ) => void;
+  onExecuteSpy?: (targetId: string) => Promise<{ role: string; team: string; name: string }>;
   onAdvanceNight?: () => void;
   isHost?: boolean;
   waitingCorralNode?: React.ReactNode;
@@ -40,6 +41,7 @@ export const NightActionPanel: React.FC<Props> = ({
   canSelfProtectPastor,
   soldiersList,
   onPerformAction,
+  onExecuteSpy,
   onAdvanceNight,
   isHost,
   waitingCorralNode,
@@ -101,13 +103,30 @@ export const NightActionPanel: React.FC<Props> = ({
   // =========================================================================
   // Habilidade do Espião (Modificador Especial - Uso Único)
   // =========================================================================
-  const handleExecuteSpy = () => {
+  const handleExecuteSpy = async () => {
     if (!spyTargetId || spyPerformed) return;
     sounds.playClick();
     const target = allPlayers.find(p => p.id === spyTargetId);
     if (!target) return;
 
-    const res = `✦ ESPIONAGEM CONCLUÍDA:\nO jogador ${target.name} possui a função secreta: ${target.role} (Equipe: ${target.team})!`;
+    let role = target.role;
+    let team = target.team;
+    let name = target.name;
+
+    if (!role && onExecuteSpy) {
+      try {
+        const remote = await onExecuteSpy(spyTargetId);
+        if (remote) {
+          role = remote.role;
+          team = remote.team;
+          name = remote.name || target.name;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const res = `✦ ESPIONAGEM CONCLUÍDA:\nO jogador ${name} possui a função secreta: ${role || 'Desconhecida'} (Equipe: ${team || 'Desconhecida'})!`;
     setSpyResultText(res);
     setSpyPerformed(true);
   };
@@ -271,7 +290,7 @@ export const NightActionPanel: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-3 sm:p-5 space-y-4 animate-fadeIn select-none bg-[#0B132B] text-white rounded-2xl">
+    <div className="flex-1 flex flex-col justify-between p-2.5 sm:p-4 space-y-2.5 animate-fadeIn select-none bg-[#0B132B] text-white rounded-2xl">
       {/* Header Info - MODO ESCURO COM FUNDO AZUL ESCURO E LETRAS BRANCAS */}
       <div className="text-center space-y-1.5">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1C2541] border border-indigo-400/40 text-indigo-200 rounded-full text-[11px] font-mono uppercase tracking-widest">

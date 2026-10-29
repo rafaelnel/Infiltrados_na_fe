@@ -67,7 +67,7 @@ export const VotingPanel: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-2 sm:p-4 space-y-3 animate-fadeIn">
+    <div className="flex-1 flex flex-col justify-between p-2 sm:p-3 space-y-2 animate-fadeIn">
       {/* Header */}
       <div className="text-center space-y-1">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">
@@ -130,7 +130,7 @@ export const VotingPanel: React.FC<Props> = ({
         <span className="text-[10px] font-mono font-bold uppercase text-neutral-600 block px-1">
           Candidatos Vivos à Eliminação:
         </span>
-        <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto p-1 border-2 border-black rounded-2xl bg-neutral-50">
+        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1 border-2 border-black rounded-2xl bg-neutral-50">
           {livingPlayers.map(target => {
             const votesReceived = voteTallies.get(target.id) || 0;
             const isSelected = selectedTargetId === target.id;
