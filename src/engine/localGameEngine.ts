@@ -157,7 +157,8 @@ export function createLocalGameFromRoster(
   customDeck?: Role[],
   customDiscussionSeconds: number = 120,
   customModifiersConfig?: ModifiersConfig,
-  playerProfiles?: Record<string, { color?: string; avatar?: string }>
+  playerProfiles?: Record<string, { color?: string; avatar?: string }>,
+  blockFirstNightElimination: boolean = false
 ): LocalGameState {
   const modifiersConfig: ModifiersConfig = customModifiersConfig
     ? { ...customModifiersConfig }
@@ -166,6 +167,7 @@ export function createLocalGameFromRoster(
   const config: GameConfig = {
     revealRolesOnDeath: false,
     pastorCanSelfProtect: true,
+    blockFirstNightElimination,
     discussionTimeSeconds: customDiscussionSeconds || 120,
     votingTimeSeconds: 60,
     nightTimeSeconds: 60,
@@ -533,9 +535,19 @@ export function resolveLocalNight(state: LocalGameState): LocalGameState {
     }
   }
 
-  // 6. Death resolution com verificação do ANJO (Sacrifício heroico de uso único)
+  // 6. Death resolution com verificação de Bloqueio na 1ª Noite e do ANJO (Sacrifício heroico de uso único)
   let victimName: string | null = null;
-  if (targetId) {
+  if (next.config.blockFirstNightElimination && next.dayNumber === 1) {
+    targetId = null;
+    next.logs.push({
+      id: 'log_truce_' + Date.now(),
+      phase: 'NIGHT',
+      dayNumber: next.dayNumber,
+      text: `🛡️ PROTEÇÃO DA 1ª NOITE: A eliminação na 1ª noite está bloqueada pelas configurações da partida! Todo o rebanho amanheceu em segurança.`,
+      timestamp: Date.now(),
+      type: 'INFO',
+    });
+  } else if (targetId) {
     if (targetId === protectedId) {
       next.logs.push({
         id: 'log_prot_' + Date.now(),

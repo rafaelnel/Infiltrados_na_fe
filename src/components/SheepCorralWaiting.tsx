@@ -849,12 +849,12 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
   const slantSteps = [0.2, 0.4, 0.6, 0.8];
 
   return (
-    <div className="w-full flex flex-col items-center space-y-2.5 select-none">
+    <div className="w-full flex flex-col items-center space-y-2 select-none">
       {/* Top Banner de Status e Título do Cercado em P&B */}
       <div className="w-full flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-xl bg-black text-white flex items-center justify-center border-2 border-black shadow-xs">
-            {isNight ? <Moon size={15} /> : <Sun size={15} />}
+          <div className="w-6 h-6 lg:w-7 lg:h-7 rounded-xl bg-black text-white flex items-center justify-center border-2 border-black shadow-xs">
+            {isNight ? <Moon size={14} /> : <Sun size={14} />}
           </div>
           <div className="text-left">
             <h4 className="text-xs font-black uppercase font-mono tracking-tight leading-tight text-black">
@@ -867,7 +867,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
         </div>
 
         {waitingCountText && (
-          <div className="px-3 py-1 rounded-full text-[10px] font-mono font-black border-2 border-black bg-white text-black flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] shrink-0">
+          <div className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-black border-2 border-black bg-white text-black flex items-center gap-1.5 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] shrink-0">
             <Sparkles size={11} className="text-black animate-spin" />
             <span>{waitingCountText}</span>
           </div>
@@ -879,7 +879,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
         ref={corralRef}
         onClick={handleCorralClick}
         onTouchStart={handleCorralClick}
-        className="relative w-full aspect-[16/9] min-h-[240px] sm:min-h-[290px] bg-white overflow-hidden cursor-pointer select-none rounded-2xl border-2 border-black/15"
+        className="relative w-full h-[210px] sm:h-[245px] lg:h-[235px] xl:h-[265px] bg-white overflow-hidden cursor-pointer select-none rounded-2xl border-2 border-black/15"
         style={{ touchAction: 'manipulation' }}
       >
         {/* CAMADA 1: Graminhas de Fundo, Cerca Traseira e Cercas Laterais em Perspectiva */}
@@ -978,7 +978,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
 
         {/* Dica discreta inicial */}
         {showControlsHint && (
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none bg-white text-black px-3 py-1 rounded-full text-[10px] font-mono font-bold tracking-tight shadow-sm border-2 border-black">
+          <div className="absolute top-10 left-1/2 -translate-x-1/2 z-40 pointer-events-none bg-white text-black px-3 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-tight shadow-sm border-2 border-black">
             <span>Toque onde quer ir no cercado</span>
           </div>
         )}
@@ -1116,12 +1116,12 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
           whileHover={{ scale: 1.01 }}
           type="button"
           onClick={handleBaa}
-          className="w-full py-3.5 px-6 rounded-2xl bg-white hover:bg-neutral-100 active:bg-black active:text-white text-black border-3 border-black font-mono font-black text-sm tracking-wider uppercase shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none transition-all flex items-center justify-center gap-2.5 cursor-pointer"
+          className="w-full py-2.5 lg:py-2 px-5 rounded-2xl bg-white hover:bg-neutral-100 active:bg-black active:text-white text-black border-2 border-black font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer"
         >
-          <Volume2 size={19} className="text-black" />
+          <Volume2 size={17} className="text-black" />
           <span>FALAR &quot;MEH!&quot; 🐑</span>
           {baaCount > 0 && (
-            <span className="ml-1 px-2.5 py-0.5 bg-black text-white rounded-full text-xs font-bold font-mono">
+            <span className="ml-1 px-2 py-0.5 bg-black text-white rounded-full text-[11px] font-bold font-mono">
               {baaCount}x
             </span>
           )}

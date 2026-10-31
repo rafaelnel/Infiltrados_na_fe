@@ -84,6 +84,7 @@ export interface Room {
   config: {
     revealRolesOnDeath: boolean;
     pastorCanSelfProtect: boolean;
+    blockFirstNightElimination?: boolean;
     discussionTimeSeconds: number;
     votingTimeSeconds: number;
     nightTimeSeconds: number;
@@ -474,6 +475,7 @@ async function startServer() {
         config: {
           revealRolesOnDeath: true,
           pastorCanSelfProtect: false,
+          blockFirstNightElimination: false,
           discussionTimeSeconds: 120,
           votingTimeSeconds: 60,
           nightTimeSeconds: 60,
@@ -697,7 +699,7 @@ async function startServer() {
     });
 
     // C) Iniciar Partida (start-game) - apenas o criador (host)
-    socket.on('start-game', (data: { roomCode: string; playerId: string; customDeck?: Role[]; discussionTimeSeconds?: number; modifiersConfig?: ModifiersConfig }, callback?: (res: any) => void) => {
+    socket.on('start-game', (data: { roomCode: string; playerId: string; customDeck?: Role[]; discussionTimeSeconds?: number; modifiersConfig?: ModifiersConfig; blockFirstNightElimination?: boolean }, callback?: (res: any) => void) => {
       const code = (data?.roomCode || '').toUpperCase().trim();
       const room = rooms.get(code);
 
@@ -715,6 +717,9 @@ async function startServer() {
       distributeRoles(room, data?.customDeck, data?.modifiersConfig);
       if (data?.discussionTimeSeconds) {
         room.config.discussionTimeSeconds = data.discussionTimeSeconds;
+      }
+      if (typeof data?.blockFirstNightElimination === 'boolean') {
+        room.config.blockFirstNightElimination = data.blockFirstNightElimination;
       }
       room.phase = 'ROLE_REVEAL';
       room.dayNumber = 1;
@@ -1089,6 +1094,7 @@ async function startServer() {
       config: {
         revealRolesOnDeath: true,
         pastorCanSelfProtect: false,
+        blockFirstNightElimination: false,
         discussionTimeSeconds: 90,
         votingTimeSeconds: 45,
         nightTimeSeconds: 45,
@@ -1398,7 +1404,7 @@ async function startServer() {
   // Iniciar jogo
   app.post('/api/rooms/:code/start', (req: Request, res: Response) => {
     const code = req.params.code.toUpperCase();
-    const { playerId, customDeck, discussionTimeSeconds, modifiersConfig } = req.body;
+    const { playerId, customDeck, discussionTimeSeconds, modifiersConfig, blockFirstNightElimination } = req.body;
     const room = rooms.get(code);
 
     if (!room) return res.status(404).json({ error: 'Sala inexistente' });
@@ -1410,6 +1416,9 @@ async function startServer() {
     distributeRoles(room, customDeck, modifiersConfig);
     if (discussionTimeSeconds) {
       room.config.discussionTimeSeconds = discussionTimeSeconds;
+    }
+    if (typeof blockFirstNightElimination === 'boolean') {
+      room.config.blockFirstNightElimination = blockFirstNightElimination;
     }
     room.phase = 'ROLE_REVEAL';
     room.dayNumber = 1;
@@ -2177,7 +2186,17 @@ function resolveNightActions(room: Room) {
   );
 
   let victimName: string | null = null;
-  if (killTargetId) {
+  if (room.config.blockFirstNightElimination && room.dayNumber === 1) {
+    killTargetId = null;
+    room.logs.push({
+      id: 'log_' + Date.now(),
+      phase: 'NIGHT',
+      dayNumber: room.dayNumber,
+      text: `🛡️ PROTEÇÃO DA 1ª NOITE: A eliminação na 1ª noite está bloqueada pelas configurações da partida! Todo o rebanho amanheceu em segurança.`,
+      timestamp: Date.now(),
+      type: 'INFO',
+    });
+  } else if (killTargetId) {
     const targetCandidate = room.players.find(p => p.id === killTargetId);
     const targetName = targetCandidate ? targetCandidate.name : 'O alvo';
 

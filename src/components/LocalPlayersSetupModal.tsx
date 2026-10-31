@@ -35,12 +35,14 @@ interface Props {
     customDeck?: Role[],
     discussionTimeSeconds?: number,
     modifiersConfig?: ModifiersConfig,
-    playerProfiles?: LocalPlayerProfilesMap
+    playerProfiles?: LocalPlayerProfilesMap,
+    blockFirstNightElimination?: boolean
   ) => void;
 }
 
 const STORAGE_KEY = 'infiltrado_saved_local_players';
 const PROFILES_STORAGE_KEY = 'infiltrado_saved_local_profiles';
+const BLOCK_FIRST_NIGHT_KEY = 'infiltrado_local_block_first_night';
 
 const DEFAULT_PLAYERS = [
   'Rafael',
@@ -135,6 +137,15 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
     falsoProfeta: true,
     espiao: true,
     anjo: true,
+  });
+
+  // Bloquear eliminação na 1ª Noite
+  const [blockFirstNightElimination, setBlockFirstNightElimination] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(BLOCK_FIRST_NIGHT_KEY) === 'true';
+    } catch {
+      return false;
+    }
   });
 
   const saveProfilesToStorage = (updatedProfiles: LocalPlayerProfilesMap) => {
@@ -349,7 +360,14 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
     });
 
     const finalProfiles = buildCompleteProfiles(players, playerProfiles);
-    onStartWithPlayers(players, deck, discussionSeconds, modifiersConfig, finalProfiles);
+    onStartWithPlayers(
+      players,
+      deck,
+      discussionSeconds,
+      modifiersConfig,
+      finalProfiles,
+      blockFirstNightElimination
+    );
   };
 
   if (!isOpen) return null;
@@ -799,6 +817,54 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
               <p className="text-[9.5px] font-mono text-neutral-500 leading-tight">
                 ⏳ Ao término deste tempo na assembleia, a fase de votação iniciará automaticamente.
               </p>
+            </div>
+
+            {/* ========================================================= */}
+            {/* REGRA DE PROTEÇÃO: BLOQUEAR ELIMINAÇÃO NA 1ª NOITE */}
+            {/* ========================================================= */}
+            <div
+              onClick={() => {
+                sounds.playClick();
+                const nextVal = !blockFirstNightElimination;
+                setBlockFirstNightElimination(nextVal);
+                try {
+                  localStorage.setItem(BLOCK_FIRST_NIGHT_KEY, String(nextVal));
+                } catch {}
+              }}
+              className={`p-3 border-2 rounded-2xl cursor-pointer transition-all flex items-center justify-between gap-3 ${
+                blockFirstNightElimination
+                  ? 'border-emerald-600 bg-emerald-50/90 shadow-xs'
+                  : 'border-black bg-neutral-50 hover:bg-neutral-100'
+              }`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck
+                    size={15}
+                    className={blockFirstNightElimination ? 'text-emerald-700 shrink-0' : 'text-black shrink-0'}
+                  />
+                  <span className="font-black uppercase tracking-wider text-black text-[11px]">
+                    Bloquear Eliminação na 1ª Noite
+                  </span>
+                </div>
+                <p className="text-[9.5px] font-mono text-neutral-600 leading-tight mt-0.5">
+                  Impede que os Soldados eliminem alguém na primeira noite, garantindo que todos participem do 1º Dia.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={blockFirstNightElimination}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-black transition-colors ${
+                  blockFirstNightElimination ? 'bg-emerald-600' : 'bg-neutral-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white border border-black transition-transform ${
+                    blockFirstNightElimination ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                />
+              </button>
             </div>
 
             {/* ========================================================= */}

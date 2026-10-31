@@ -109,7 +109,7 @@ export const ChatPanel: React.FC<Props> = ({
       </div>
 
       {/* Message List */}
-      <div className="flex-1 overflow-y-auto p-2.5 space-y-2 text-xs font-mono max-h-48 sm:max-h-56">
+      <div className="flex-1 overflow-y-auto p-2.5 space-y-2 text-xs font-mono max-h-48 sm:max-h-56 lg:max-h-[260px] min-h-0">
         {filteredMessages.length === 0 ? (
           <div className="text-center py-6 text-neutral-400 text-[10px]">
             Nenhuma mensagem na congregação ainda.

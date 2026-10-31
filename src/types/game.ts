@@ -212,6 +212,7 @@ export interface GameLog {
 export interface GameConfig {
   revealRolesOnDeath: boolean;
   pastorCanSelfProtect: boolean;
+  blockFirstNightElimination?: boolean;
   discussionTimeSeconds: number;
   votingTimeSeconds: number;
   nightTimeSeconds: number;

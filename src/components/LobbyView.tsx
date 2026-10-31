@@ -39,7 +39,8 @@ interface Props {
   onStartGame: (
     customDeck?: Role[],
     discussionTimeSeconds?: number,
-    modifiersConfig?: ModifiersConfig
+    modifiersConfig?: ModifiersConfig,
+    blockFirstNightElimination?: boolean
   ) => void;
   onSwitchToLocalMode: () => void;
   onLeaveRoom?: () => void;
@@ -117,6 +118,23 @@ export const LobbyView: React.FC<Props> = ({
     }
   );
 
+  // Bloquear eliminação na 1ª Noite
+  const [blockFirstNightElimination, setBlockFirstNightElimination] = useState<boolean>(
+    Boolean(config.blockFirstNightElimination)
+  );
+  const [revealRolesOnDeath, setRevealRolesOnDeath] = useState<boolean>(
+    Boolean(config.revealRolesOnDeath)
+  );
+  const [pastorCanSelfProtect, setPastorCanSelfProtect] = useState<boolean>(
+    Boolean(config.pastorCanSelfProtect)
+  );
+
+  useEffect(() => {
+    if (typeof config.blockFirstNightElimination === 'boolean') {
+      setBlockFirstNightElimination(config.blockFirstNightElimination);
+    }
+  }, [config.blockFirstNightElimination]);
+
   // Atualizar baralho recomendado quando novos jogadores entram se o modal de config não estiver aberto
   useEffect(() => {
     if (players.length >= 5 && !showConfigModal) {
@@ -184,7 +202,7 @@ export const LobbyView: React.FC<Props> = ({
       return;
     }
     sounds.playMorningBell();
-    onStartGame(buildDeck(), discussionSeconds, modifiersConfig);
+    onStartGame(buildDeck(), discussionSeconds, modifiersConfig, blockFirstNightElimination);
   };
 
   const handleConfirmAndStart = () => {
@@ -197,7 +215,7 @@ export const LobbyView: React.FC<Props> = ({
     setConfigError(null);
     sounds.playMorningBell();
     setShowConfigModal(false);
-    onStartGame(buildDeck(), discussionSeconds, modifiersConfig);
+    onStartGame(buildDeck(), discussionSeconds, modifiersConfig, blockFirstNightElimination);
   };
 
   const savedLocalAvatar = (() => {
@@ -235,47 +253,217 @@ export const LobbyView: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-2 sm:p-4 space-y-3 animate-fadeIn overflow-y-auto max-h-full">
-      {/* Title & Room Badge */}
-      <div className="text-center space-y-1">
-        <div className="inline-block px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">
-          Sala de Espera Online
-        </div>
-        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-black">
-          VILA DAS OVELHAS
-        </h2>
-        <p className="text-xs font-mono text-neutral-600">
-          Cada jogador utiliza seu próprio celular • Decisões simultâneas
-        </p>
+    <div className="flex-1 min-h-0 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 lg:items-stretch p-1 sm:p-2 space-y-2.5 lg:space-y-0 animate-fadeIn overflow-y-auto lg:overflow-hidden max-h-full">
+      {/* =====================================================================
+          COLUNA ESQUERDA (DESKTOP): CABEÇALHO DA SALA + APRISCO INTERATIVO
+          ===================================================================== */}
+      <div className="lg:col-span-7 flex flex-col justify-between min-h-0 space-y-2">
+        {/* Title & Room Code Header (Lado a lado no Desktop) */}
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 text-center lg:text-left border-b-0 lg:border-b-2 lg:border-black/10 lg:pb-2">
+          <div className="space-y-0.5">
+            <div className="inline-block px-2.5 py-0.5 bg-black text-white rounded-full text-[9px] font-mono uppercase tracking-widest">
+              Sala de Espera Online
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-black leading-none">
+              VILA DAS OVELHAS
+            </h2>
+            <p className="text-[11px] font-mono text-neutral-600">
+              Cada jogador utiliza seu próprio aparelho • Decisões simultâneas
+            </p>
+          </div>
 
-        {/* Room Code Click-to-Copy */}
-        <div className="pt-2 flex items-center justify-center gap-2">
-          <div className="border-2 border-black rounded-2xl px-4 py-2 bg-neutral-50 flex items-center gap-3 shadow-xs">
-            <span className="text-[10px] font-mono uppercase text-neutral-500 font-bold">
-              Código da Sala:
-            </span>
-            <span className="text-lg font-mono font-black tracking-widest text-black">
-              {roomCode}
-            </span>
+          {/* Room Code Click-to-Copy */}
+          <div className="flex items-center justify-center lg:justify-end">
+            <div className="border-2 border-black rounded-2xl px-3.5 py-1.5 bg-neutral-50 flex items-center gap-2.5 shadow-xs">
+              <span className="text-[10px] font-mono uppercase text-neutral-500 font-bold">
+                Código:
+              </span>
+              <span className="text-base sm:text-lg font-mono font-black tracking-widest text-black">
+                {roomCode}
+              </span>
+              <button
+                onClick={handleCopyCode}
+                title="Copiar Código"
+                className="p-1 border border-black rounded-lg hover:bg-black hover:text-white transition-colors cursor-pointer"
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Banner de Perfil Mobile (Visível apenas em telas menores que lg; no Desktop fica na coluna direita) */}
+        <div className="lg:hidden">
+          <div className="border-2 border-black rounded-2xl p-2 bg-white flex items-center justify-between gap-2 shadow-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <PersonAvatar
+                avatar={activePlayer.avatar}
+                color={activePlayer.color || '#F59E0B'}
+                seed={activePlayer.name}
+                size={38}
+                className="border-2 border-black shrink-0"
+              />
+              <div className="text-left min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-xs truncate text-black">{activePlayer.name}</span>
+                  <span
+                    className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
+                    style={{ backgroundColor: activePlayer.color || '#F59E0B' }}
+                  />
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-neutral-100 text-neutral-700 border border-neutral-300">
+                    Você
+                  </span>
+                </div>
+                <p className="text-[10px] text-neutral-500 font-mono truncate">
+                  Personalize rosto, acessórios e cor
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  const otherColors = players
+                    .filter(p => p.id !== activePlayer.id)
+                    .map(p => p.color)
+                    .filter((c): c is string => Boolean(c));
+                  const randomColor = pickRandomAvailableColor(undefined, otherColors).color;
+                  const randomAvatar = encodeAvatar(generateRandomCharacterConfig());
+                  try {
+                    localStorage.setItem('custom_avatar_data', randomAvatar);
+                    localStorage.setItem('custom_avatar_color', randomColor);
+                  } catch {}
+                  onUpdateProfile?.(randomAvatar, randomColor);
+                }}
+                className="py-1.5 px-2 bg-amber-300 hover:bg-amber-400 border-2 border-black text-black rounded-xl text-[10px] font-mono font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+              >
+                <span>🎲 Aleatório</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  setIsAvatarModalOpen(true);
+                }}
+                className="py-1.5 px-2.5 bg-black text-white rounded-xl text-[10px] font-mono font-black uppercase tracking-wider hover:bg-neutral-800 flex items-center gap-1 cursor-pointer"
+              >
+                <Sparkles size={11} className="text-amber-400" />
+                <span>Avatar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tabs de navegação (Apenas Mobile/Tablet < lg; no Desktop ambos aparecem lado a lado) */}
+        <div className="lg:hidden">
+          <div className="flex bg-neutral-100 p-1 rounded-2xl border-2 border-black gap-1 shadow-xs">
             <button
-              onClick={handleCopyCode}
-              title="Copiar Código"
-              className="p-1 border border-black rounded-lg hover:bg-black hover:text-white transition-colors cursor-pointer"
+              type="button"
+              onClick={() => {
+                sounds.playClick();
+                setActiveTab('corral');
+              }}
+              className={`flex-1 py-1.5 px-2.5 rounded-xl font-mono text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'corral'
+                  ? 'bg-black text-white shadow-xs'
+                  : 'text-neutral-600 hover:text-black hover:bg-neutral-200'
+              }`}
             >
-              {copied ? <Check size={14} /> : <Copy size={14} />}
+              <span>🪵 Aprisco do Rebanho</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${activeTab === 'corral' ? 'bg-white text-black' : 'bg-black text-white'}`}>
+                MEH! 🐑
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                sounds.playClick();
+                setActiveTab('roster');
+              }}
+              className={`flex-1 py-1.5 px-2.5 rounded-xl font-mono text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'roster'
+                  ? 'bg-black text-white shadow-xs'
+                  : 'text-neutral-600 hover:text-black hover:bg-neutral-200'
+              }`}
+            >
+              <Users size={14} />
+              <span>Membros ({players.length}/16)</span>
             </button>
           </div>
         </div>
 
-        {/* Banner de Perfil & Customização do Avatar do Jogador */}
-        <div className="pt-1.5 max-w-md mx-auto">
+        {/* O CERCADO DAS OVELHAS (Sempre visível no Desktop, ou quando aba corral está ativa no mobile) */}
+        <div className={`${activeTab === 'corral' ? 'block' : 'hidden'} lg:block flex-1 min-h-0 flex flex-col justify-center space-y-2 animate-fadeIn`}>
+          <SheepCorralWaiting
+            currentPlayer={activePlayer}
+            allPlayers={players.length > 0 ? players : [activePlayer]}
+            title="Aprisco da Vila"
+            subtitle="Clique no pasto para caminhar e aperte 'MEH'!"
+            waitingCountText={`${players.length}/16 ovelhas`}
+            isNight={false}
+            onSendSheepEvent={onSendSheepEvent}
+            incomingSheepEvent={incomingSheepEvent}
+            syncedSheepMap={syncedSheepMap}
+          />
+
+          {/* Barra de Acesso Rápido a Membros no Pasto (Apenas Mobile, pois no Desktop a lista completa já está ao lado) */}
+          <div className="lg:hidden flex items-center justify-between p-2 bg-neutral-50 border-2 border-black rounded-2xl text-xs font-mono">
+            <div className="flex items-center gap-1.5 overflow-x-auto max-w-[230px] sm:max-w-xs py-0.5">
+              {players.map(p => (
+                <motion.span
+                  key={p.id}
+                  layout
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+                  title={`${p.name} ${p.isHost ? '(Host)' : ''}`}
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 flex items-center gap-1 ${
+                    p.id === activePlayer.id
+                      ? 'bg-black text-white border-black'
+                      : 'bg-white text-black border-black/30'
+                  }`}
+                >
+                  <PersonAvatar
+                    avatar={p.avatar}
+                    color={p.color || '#F59E0B'}
+                    seed={p.name}
+                    size={16}
+                    className="border border-black/30 shrink-0"
+                  />
+                  <span>{p.name}</span>
+                </motion.span>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab('roster')}
+                className="py-1 px-2.5 border border-black bg-white rounded-xl text-[10px] font-bold hover:bg-neutral-100 cursor-pointer"
+              >
+                Ver Lista ({players.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* =====================================================================
+          COLUNA DIREITA (DESKTOP): PERFIL + LISTA DE MEMBROS + CONTROLES DO HOST
+          ===================================================================== */}
+      <div className="lg:col-span-5 flex flex-col justify-between min-h-0 space-y-2.5 lg:border-l-2 lg:border-black/10 lg:pl-5">
+        {/* Banner de Perfil Desktop */}
+        <div className="hidden lg:block">
           <div className="border-2 border-black rounded-2xl p-2.5 bg-white flex items-center justify-between gap-2 shadow-xs">
             <div className="flex items-center gap-2.5 min-w-0">
               <PersonAvatar
                 avatar={activePlayer.avatar}
                 color={activePlayer.color || '#F59E0B'}
                 seed={activePlayer.name}
-                size={42}
+                size={40}
                 className="border-2 border-black shrink-0"
               />
               <div className="text-left min-w-0">
@@ -324,115 +512,17 @@ export const LobbyView: React.FC<Props> = ({
                   sounds.playClick();
                   setIsAvatarModalOpen(true);
                 }}
-                className="py-1.5 px-3 bg-black text-white rounded-xl text-[10px] font-mono font-black uppercase tracking-wider hover:bg-neutral-800 transition-transform active:scale-95 flex items-center gap-1 cursor-pointer shadow-xs"
+                className="py-1.5 px-2.5 bg-black text-white rounded-xl text-[10px] font-mono font-black uppercase tracking-wider hover:bg-neutral-800 transition-transform active:scale-95 flex items-center gap-1 cursor-pointer shadow-xs"
               >
-                <Sparkles size={12} className="text-amber-400" />
+                <Sparkles size={11} className="text-amber-400" />
                 <span>Avatar & Cor</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Tabs de navegação entre o Minigame do Pasto e a Lista da Sala */}
-        <div className="pt-1 max-w-md mx-auto">
-          <div className="flex bg-neutral-100 p-1 rounded-2xl border-2 border-black gap-1 shadow-xs">
-            <button
-              type="button"
-              onClick={() => {
-                sounds.playClick();
-                setActiveTab('corral');
-              }}
-              className={`flex-1 py-2 px-2.5 rounded-xl font-mono text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'corral'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'text-neutral-600 hover:text-black hover:bg-neutral-200'
-              }`}
-            >
-              <span>🪵 Aprisco do Rebanho</span>
-              <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${activeTab === 'corral' ? 'bg-white text-black' : 'bg-black text-white'}`}>
-                MEH! 🐑
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                sounds.playClick();
-                setActiveTab('roster');
-              }}
-              className={`flex-1 py-2 px-2.5 rounded-xl font-mono text-xs font-black uppercase flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                activeTab === 'roster'
-                  ? 'bg-black text-white shadow-xs'
-                  : 'text-neutral-600 hover:text-black hover:bg-neutral-200'
-              }`}
-            >
-              <Users size={14} />
-              <span>Membros ({players.length}/16)</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ABA 1: O CERCADO DAS OVELHAS (MINIGAME DE ESPERA) */}
-      {activeTab === 'corral' && (
-        <div className="w-full space-y-2 animate-fadeIn">
-          <SheepCorralWaiting
-            currentPlayer={activePlayer}
-            allPlayers={players.length > 0 ? players : [activePlayer]}
-            title="Aprisco da Vila"
-            subtitle="Toque em qualquer lugar na tela para sua ovelhinha caminhar e aperte 'MEH'!"
-            waitingCountText={`${players.length}/16 ovelhas`}
-            isNight={false}
-            onSendSheepEvent={onSendSheepEvent}
-            incomingSheepEvent={incomingSheepEvent}
-            syncedSheepMap={syncedSheepMap}
-          />
-
-          {/* Barra de Acesso Rápido a Membros no Pasto */}
-          <div className="flex items-center justify-between p-2 bg-neutral-50 border-2 border-black rounded-2xl text-xs font-mono">
-            <div className="flex items-center gap-1.5 overflow-x-auto max-w-[230px] sm:max-w-xs py-0.5">
-              {players.map(p => (
-                <motion.span
-                  key={p.id}
-                  layout
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                  title={`${p.name} ${p.isHost ? '(Host)' : ''}`}
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 flex items-center gap-1 ${
-                    p.id === activePlayer.id
-                      ? 'bg-black text-white border-black'
-                      : 'bg-white text-black border-black/30'
-                  }`}
-                >
-                  <PersonAvatar
-                    avatar={p.avatar}
-                    color={p.color || '#F59E0B'}
-                    seed={p.name}
-                    size={16}
-                    className="border border-black/30 shrink-0"
-                  />
-                  <span>{p.name}</span>
-                </motion.span>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setActiveTab('roster')}
-                className="py-1 px-2.5 border border-black bg-white rounded-xl text-[10px] font-bold hover:bg-neutral-100 cursor-pointer"
-              >
-                Ver Lista ({players.length})
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ABA 2: LISTA DE MEMBROS REUNIDOS E DETALHES */}
-      {activeTab === 'roster' && (
-        <div className="flex-1 flex flex-col space-y-2 animate-fadeIn">
+        {/* LISTA DE MEMBROS REUNIDOS (Sempre visível no Desktop; no mobile quando activeTab === 'roster') */}
+        <div className={`${activeTab === 'roster' ? 'flex' : 'hidden'} lg:flex flex-1 min-h-0 flex-col space-y-1.5 animate-fadeIn`}>
           <div className="flex justify-between items-center px-1">
             <span className="text-xs font-mono font-bold uppercase tracking-wider text-black flex items-center gap-1.5">
               <Users size={14} />
@@ -440,7 +530,7 @@ export const LobbyView: React.FC<Props> = ({
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50">
+          <div className="grid grid-cols-2 gap-1.5 max-h-44 lg:max-h-48 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50 flex-1">
             {players.map(p => {
               const isMe = p.id === activePlayer.id;
 
@@ -452,7 +542,7 @@ export const LobbyView: React.FC<Props> = ({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.94, y: -8 }}
                   transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                  className={`p-2 bg-white border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all ${
+                  className={`p-1.5 bg-white border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all h-fit ${
                     isMe ? 'border-2 border-black' : 'border-neutral-300'
                   }`}
                 >
@@ -461,7 +551,7 @@ export const LobbyView: React.FC<Props> = ({
                       avatar={p.avatar}
                       color={p.color || '#F59E0B'}
                       seed={p.name}
-                      size={24}
+                      size={22}
                       className="border border-black/30 shrink-0"
                     />
                     <span className="font-bold truncate text-[11px]">{p.name}</span>
@@ -491,149 +581,148 @@ export const LobbyView: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setActiveTab('corral')}
-            className="w-full py-2 bg-amber-50 border-2 border-amber-500 text-amber-950 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer"
+            className="lg:hidden w-full py-2 bg-amber-50 border-2 border-amber-500 text-amber-950 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1.5 hover:bg-amber-100 transition-colors cursor-pointer"
           >
             <span>🌾 Voltar para o Pasto das Ovelhas ("MEH!")</span>
           </button>
         </div>
-      )}
 
-      {/* Host Controls */}
-      <div className="space-y-2 pt-1">
-        {isHost && (
-          <div className="space-y-2">
+        {/* Host Controls & Action Buttons */}
+        <div className="space-y-1.5 pt-0.5 shrink-0">
+          {isHost && (
             <div className="flex gap-1.5 flex-wrap">
               <button
                 onClick={() => handleAddBotClick(1)}
                 disabled={isBotBusy || players.length >= 16}
-                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
+                className="flex-1 min-w-[65px] py-1.5 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
               >
-                <Bot size={13} /> +1 Bot
+                <Bot size={12} /> +1 Bot
               </button>
               <button
                 onClick={() => handleAddBotClick(3)}
                 disabled={isBotBusy || players.length >= 14}
-                className="flex-1 min-w-[70px] py-2 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
+                className="flex-1 min-w-[65px] py-1.5 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
               >
-                <UserPlus size={13} /> +3 Bots
+                <UserPlus size={12} /> +3 Bots
               </button>
               {players.some(p => p.isBot) && onRemoveBot && (
                 <button
                   onClick={handleRemoveBotClick}
                   disabled={isBotBusy}
-                  className="py-2 px-2.5 border-2 border-red-800 text-red-800 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-red-50 disabled:opacity-40 transition-colors cursor-pointer"
+                  className="py-1.5 px-2 border-2 border-red-800 text-red-800 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-red-50 disabled:opacity-40 transition-colors cursor-pointer"
                   title="Remover último bot adicionado"
                 >
-                  <Minus size={13} /> Bot
+                  <Minus size={12} /> Bot
                 </button>
               )}
               <button
                 onClick={() => setShowConfigModal(true)}
-                className="py-2 px-3 border-2 border-black bg-neutral-100 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1.5 hover:bg-black hover:text-white transition-colors cursor-pointer"
+                className="py-1.5 px-2.5 border-2 border-black bg-neutral-100 rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-black hover:text-white transition-colors cursor-pointer"
                 title="Configurar Baralho, Tempo e Modificadores"
               >
-                <Sliders size={13} />
+                <Sliders size={12} />
                 <span>Configurar</span>
               </button>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Local mode fallback option */}
-        <button
-          onClick={onSwitchToLocalMode}
-          className="w-full py-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 text-neutral-800 hover:bg-neutral-100 transition-colors cursor-pointer"
-        >
-          <Phone size={13} />
-          <span>Passar o Celular (Modo Local Offline)</span>
-        </button>
-
-        {/* Start Game Button */}
-        {isHost ? (
-          <button
-            onClick={handleStart}
-            disabled={players.length < 5}
-            className={`w-full py-3.5 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest transition-transform cursor-pointer ${
-              players.length >= 5
-                ? 'bg-black text-white active:scale-95 shadow-md hover:bg-neutral-800'
-                : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
-            }`}
-          >
-            <FourPointStar size={14} />
-            <span>
-              {players.length >= 5
-                ? 'INICIAR PARTIDA ONLINE'
-                : `ADICIONE MAIS ${5 - players.length} JOGADORES/BOTS`}
-            </span>
-            <FourPointStar size={14} />
-          </button>
-        ) : (
-          <div className="text-center py-3 border-2 border-black rounded-full bg-neutral-100 text-xs font-mono font-bold text-neutral-700">
-            Aguardando o anfitrião configurar e iniciar a partida... (Divirta-se no pasto!)
-          </div>
-        )}
-
-        {/* Sair da Sala com Confirmação em 2 Etapas */}
-        {showLeaveConfirm ? (
-          <div className="p-3 bg-amber-50 border-2 border-amber-600 rounded-2xl space-y-2 animate-fadeIn text-left font-mono">
-            <div className="flex items-center gap-1.5 text-amber-900 font-bold text-xs">
-              <AlertTriangle size={15} className="text-amber-700" />
-              <span>TEM CERTEZA QUE DESEJA SAIR?</span>
+          {/* Start Game Button */}
+          {isHost ? (
+            <button
+              onClick={handleStart}
+              disabled={players.length < 5}
+              className={`w-full py-2.5 lg:py-3 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest transition-transform cursor-pointer ${
+                players.length >= 5
+                  ? 'bg-black text-white active:scale-95 shadow-md hover:bg-neutral-800'
+                  : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
+              }`}
+            >
+              <FourPointStar size={14} />
+              <span>
+                {players.length >= 5
+                  ? 'INICIAR PARTIDA ONLINE'
+                  : `ADICIONE MAIS ${5 - players.length} JOGADORES/BOTS`}
+              </span>
+              <FourPointStar size={14} />
+            </button>
+          ) : (
+            <div className="text-center py-2.5 border-2 border-black rounded-full bg-neutral-100 text-[11px] font-mono font-bold text-neutral-700">
+              Aguardando o anfitrião iniciar a partida...
             </div>
-            <p className="text-[10px] text-amber-800 leading-tight">
-              {isHost
-                ? 'Como anfitrião, se você sair da sala, outro jogador online conectado será sorteado aleatoriamente para assumir como o novo anfitrião.'
-                : 'Você deixará a sala de espera do rebanho.'}
-            </p>
-            <div className="flex gap-2 pt-1">
+          )}
+
+          {/* Bottom Secondary Buttons Row (Modo Local + Sair da Sala lado a lado no Desktop) */}
+          {showLeaveConfirm ? (
+            <div className="p-2.5 bg-amber-50 border-2 border-amber-600 rounded-2xl space-y-1.5 animate-fadeIn text-left font-mono">
+              <div className="flex items-center gap-1.5 text-amber-900 font-bold text-[11px]">
+                <AlertTriangle size={14} className="text-amber-700" />
+                <span>TEM CERTEZA QUE DESEJA SAIR?</span>
+              </div>
+              <p className="text-[9px] text-amber-800 leading-tight">
+                {isHost
+                  ? 'Outro jogador conectado assumirá como novo anfitrião.'
+                  : 'Você deixará a sala de espera do rebanho.'}
+              </p>
+              <div className="flex gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => setShowLeaveConfirm(false)}
+                  disabled={isLeaving}
+                  className="flex-1 py-1 px-2 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sounds.playClick();
+                    setIsLeaving(true);
+                    setTimeout(() => {
+                      if (onLeaveRoom) onLeaveRoom();
+                    }, 250);
+                  }}
+                  disabled={isLeaving}
+                  className={`flex-1 py-1 px-2 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 shadow-xs ${
+                    isLeaving
+                      ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black'
+                      : 'bg-amber-600 text-white hover:bg-amber-700'
+                  }`}
+                >
+                  {isLeaving ? (
+                    <>
+                      <Check size={12} />
+                      <span>Saindo... ✓</span>
+                    </>
+                  ) : (
+                    'Sim, Sair'
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-1.5">
               <button
-                type="button"
-                onClick={() => setShowLeaveConfirm(false)}
-                disabled={isLeaving}
-                className="flex-1 py-1.5 px-2 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100"
+                onClick={onSwitchToLocalMode}
+                className="py-1.5 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1 text-neutral-800 hover:bg-neutral-100 transition-colors cursor-pointer truncate"
+                title="Passar o Celular (Modo Local Offline)"
               >
-                Cancelar
+                <Phone size={12} className="shrink-0" />
+                <span className="truncate">Modo Local</span>
               </button>
               <button
                 type="button"
                 onClick={() => {
                   sounds.playClick();
-                  setIsLeaving(true);
-                  setTimeout(() => {
-                    if (onLeaveRoom) onLeaveRoom();
-                  }, 250);
+                  setShowLeaveConfirm(true);
                 }}
-                disabled={isLeaving}
-                className={`flex-1 py-1.5 px-2 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 shadow-xs ${
-                  isLeaving
-                    ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black'
-                    : 'bg-amber-600 text-white hover:bg-amber-700'
-                }`}
+                className="py-1.5 px-2 border border-neutral-400 bg-white rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-600 hover:text-red-700 hover:border-red-400 flex items-center justify-center gap-1 transition-colors cursor-pointer truncate"
               >
-                {isLeaving ? (
-                  <>
-                    <Check size={12} />
-                    <span>Saindo... ✓</span>
-                  </>
-                ) : (
-                  'Sim, Sair da Sala'
-                )}
+                <LogOut size={12} className="shrink-0" />
+                <span className="truncate">Sair da Sala</span>
               </button>
             </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => {
-              sounds.playClick();
-              setShowLeaveConfirm(true);
-            }}
-            className="w-full py-2 border border-neutral-400 bg-white rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-600 hover:text-red-700 hover:border-red-400 flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <LogOut size={13} />
-            <span>Sair da Sala {isHost && '(Passar Liderança)'}</span>
-          </button>
-        )}
+          )}
+        </div>
       </div>
 
       {/* MODAL DE CONFIGURAÇÃO IGUAL AO MULTIPLAYER LOCAL */}
@@ -867,26 +956,74 @@ export const LobbyView: React.FC<Props> = ({
                 </div>
               </div>
 
-              {/* Extra Rules Checkboxes */}
-              <div className="space-y-1.5 p-3 bg-neutral-50 border-2 border-black rounded-2xl text-xs">
-                <span className="text-xs font-bold uppercase tracking-wider block text-neutral-800">
-                  Regras Adicionais
+              {/* Extra Rules Checkboxes & Toggles */}
+              <div className="space-y-2 p-3 bg-neutral-50 border-2 border-black rounded-2xl text-xs">
+                <span className="text-xs font-bold uppercase tracking-wider block text-neutral-800 flex items-center gap-1.5">
+                  <ShieldCheck size={14} />
+                  <span>Regras Adicionais da Partida</span>
                 </span>
-                <label className="flex items-center justify-between cursor-pointer">
+
+                {/* Toggle: Bloquear Eliminação na 1ª Noite */}
+                <div
+                  onClick={() => {
+                    sounds.playClick();
+                    const nextVal = !blockFirstNightElimination;
+                    setBlockFirstNightElimination(nextVal);
+                    onUpdateConfig({ blockFirstNightElimination: nextVal });
+                  }}
+                  className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                    blockFirstNightElimination
+                      ? 'bg-emerald-50 border-emerald-600'
+                      : 'bg-white border-neutral-300 hover:border-black'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-black uppercase text-black flex items-center gap-1.5">
+                      <span>🛡️ Bloquear Eliminação na 1ª Noite</span>
+                    </div>
+                    <div className="text-[10px] text-neutral-600 leading-tight mt-0.5">
+                      Impede que os Soldados eliminem alguém na primeira noite (todos sobrevivem até o 1º Dia).
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={blockFirstNightElimination}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-black transition-colors ${
+                      blockFirstNightElimination ? 'bg-emerald-600' : 'bg-neutral-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white border border-black transition-transform ${
+                        blockFirstNightElimination ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <label className="flex items-center justify-between p-2 bg-white border border-neutral-300 rounded-xl cursor-pointer">
                   <span>Revelar Papel ao Morrer:</span>
                   <input
                     type="checkbox"
-                    checked={config.revealRolesOnDeath}
-                    onChange={e => onUpdateConfig({ revealRolesOnDeath: e.target.checked })}
+                    checked={revealRolesOnDeath}
+                    onChange={e => {
+                      sounds.playClick();
+                      setRevealRolesOnDeath(e.target.checked);
+                      onUpdateConfig({ revealRolesOnDeath: e.target.checked });
+                    }}
                     className="w-4 h-4 accent-black rounded"
                   />
                 </label>
-                <label className="flex items-center justify-between cursor-pointer">
+                <label className="flex items-center justify-between p-2 bg-white border border-neutral-300 rounded-xl cursor-pointer">
                   <span>Pastor Pode se Autoproteger:</span>
                   <input
                     type="checkbox"
-                    checked={config.pastorCanSelfProtect}
-                    onChange={e => onUpdateConfig({ pastorCanSelfProtect: e.target.checked })}
+                    checked={pastorCanSelfProtect}
+                    onChange={e => {
+                      sounds.playClick();
+                      setPastorCanSelfProtect(e.target.checked);
+                      onUpdateConfig({ pastorCanSelfProtect: e.target.checked });
+                    }}
                     className="w-4 h-4 accent-black rounded"
                   />
                 </label>

@@ -203,15 +203,15 @@ export const DayAnnouncementView: React.FC<Props> = ({
       </div>
 
       {/* =========================================================================
-          CONTEÚDO PRINCIPAL (COM ANIMAÇÕES SUAVES DE ENTRADA)
+          CONTEÚDO PRINCIPAL (COM ANIMAÇÕES SUAVES DE ENTRADA E 2 COLUNAS NO DESKTOP)
           ========================================================================= */}
-      <div className="relative z-10 flex-1 flex flex-col justify-between space-y-4">
-        {/* Sun Header com pulso suave */}
+      <div className="relative z-10 flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-8 lg:items-center justify-between space-y-4 lg:space-y-0">
+        {/* Coluna Esquerda no Desktop: Sun Header com pulso suave */}
         <motion.div
           initial={{ opacity: 0, y: -18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.45, ease: 'easeOut' }}
-          className="text-center space-y-1.5"
+          className="lg:col-span-5 text-center lg:text-left space-y-2 flex flex-col items-center lg:items-start justify-center"
         >
           <motion.div
             animate={{
@@ -233,123 +233,125 @@ export const DayAnnouncementView: React.FC<Props> = ({
             </motion.div>
             <span>Amanhecer na Vila — {dayNumber}º Dia</span>
           </motion.div>
-          <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-black font-sans drop-shadow-xs">
+          <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black uppercase tracking-tight text-black font-sans drop-shadow-xs">
             O SOL NASCEU
           </h2>
-          <p className="text-xs font-mono text-neutral-700 max-w-xs mx-auto">
-            Os raios de sol e o canto do galo reúnem o rebanho na praça central.
+          <p className="text-xs font-mono text-neutral-700 max-w-xs">
+            Os raios de sol e o canto do galo reúnem o rebanho na praça central para ouvir o que aconteceu durante a noite.
           </p>
         </motion.div>
 
-        {/* Morning Event Cards com slide suave */}
-        <motion.div
-          initial={{ opacity: 0, y: 22, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 0.12, type: 'spring', damping: 24, stiffness: 260 }}
-          className="flex-1 flex flex-col justify-center space-y-3"
-        >
-          {/* Death, Protection or Peaceful Night Box */}
-          {deathLog ? (
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ duration: 0.3 }}
-              className={`border-4 border-black p-5 rounded-3xl text-center space-y-3 shadow-2xl ${
-                deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
-                  ? 'bg-amber-100/95 border-amber-800'
-                  : 'bg-red-50/95 border-red-950'
+        {/* Coluna Direita no Desktop: Morning Event Cards + Proceed Button */}
+        <div className="lg:col-span-7 flex flex-col justify-center space-y-3">
+          <motion.div
+            initial={{ opacity: 0, y: 22, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: 0.12, type: 'spring', damping: 24, stiffness: 260 }}
+            className="flex flex-col justify-center space-y-3"
+          >
+            {/* Death, Protection or Peaceful Night Box */}
+            {deathLog ? (
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className={`border-4 border-black p-4 sm:p-5 rounded-3xl text-center space-y-2.5 shadow-2xl ${
+                  deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
+                    ? 'bg-amber-100/95 border-amber-800'
+                    : 'bg-red-50/95 border-red-950'
+                }`}
+              >
+                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center mx-auto shadow-lg border-2 border-black ${
+                  deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
+                    ? 'bg-amber-500 text-black'
+                    : 'bg-red-600 text-white animate-bounce'
+                }`}>
+                  <ShieldAlert size={26} className={deathLog.text.includes('PROTEGIDO') ? 'text-black' : 'text-white'} />
+                </div>
+                <div className="space-y-1">
+                  <span className={`inline-block px-3 py-1 rounded-full text-xs font-mono font-black uppercase tracking-wider border ${
+                    deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
+                      ? 'bg-amber-200 text-amber-900 border-amber-400'
+                      : 'bg-red-200 text-red-900 border-red-400'
+                  }`}>
+                    {deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO') ? '🛡️ AÇÃO DE PROTEÇÃO' : '⚠️ ALERTA DE ELIMINAÇÃO'}
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black uppercase text-black font-mono tracking-tight">
+                    {deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO') ? 'Alvo Protegido com Sucesso!' : 'Tragédia na Calada da Noite'}
+                  </h3>
+                </div>
+                <div className="p-3 bg-white border-2 border-black rounded-2xl shadow-inner">
+                  <p className="text-sm sm:text-base font-mono text-neutral-900 leading-relaxed font-black tracking-wide">
+                    {deathLog.text}
+                  </p>
+                </div>
+              </motion.div>
+            ) : (
+              <div className="border-4 border-black p-4 sm:p-5 rounded-3xl bg-amber-50/95 backdrop-blur-xs text-center space-y-2.5 shadow-2xl border-amber-950">
+                <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-500 text-black flex items-center justify-center mx-auto shadow-lg border-2 border-black">
+                  <Heart size={26} className="fill-white text-white" />
+                </div>
+                <div className="space-y-1">
+                  <span className="inline-block px-3 py-1 bg-amber-200 text-amber-900 rounded-full text-xs font-mono font-black uppercase tracking-wider border border-amber-400">
+                    🛡️ VIGÍLIA ABENÇOADA
+                  </span>
+                  <h3 className="text-base sm:text-lg font-black uppercase text-black font-mono tracking-tight">
+                    Uma Noite em Paz
+                  </h3>
+                </div>
+                <div className="p-3 bg-white border-2 border-black rounded-2xl shadow-inner">
+                  <p className="text-sm sm:text-base font-mono text-neutral-900 leading-relaxed font-black">
+                    Nenhum membro da congregação faleceu esta noite! A vigilância do Pastor e as orações guardaram os inocentes.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Conversion Miracle Notice */}
+            {conversionLog && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.22, duration: 0.3 }}
+                className="border-2 border-amber-600 bg-amber-50 p-2.5 rounded-2xl text-center space-y-1 shadow-md"
+              >
+                <div className="flex items-center justify-center gap-1.5 text-amber-900">
+                  <Sparkles size={15} className="text-amber-600" />
+                  <span className="text-xs font-black uppercase font-mono">Milagre da Fé</span>
+                  <Sparkles size={15} className="text-amber-600" />
+                </div>
+                <p className="text-[11px] font-mono text-amber-950 font-bold">
+                  {conversionLog.text}
+                </p>
+              </motion.div>
+            )}
+          </motion.div>
+
+          {/* Proceed Button com efeito pulsante */}
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.26, duration: 0.3 }}
+          >
+            <button
+              onClick={handleProceed}
+              disabled={hasConfirmed}
+              className={`w-full py-3.5 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-all shadow-md cursor-pointer ${
+                hasConfirmed
+                  ? 'bg-emerald-600 text-white border-2 border-emerald-700 shadow-emerald-950/40'
+                  : 'bg-black text-white hover:bg-neutral-800'
               }`}
             >
-              <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto shadow-lg border-2 border-black ${
-                deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
-                  ? 'bg-amber-500 text-black'
-                  : 'bg-red-600 text-white animate-bounce'
-              }`}>
-                <ShieldAlert size={28} className={deathLog.text.includes('PROTEGIDO') ? 'text-black' : 'text-white'} />
-              </div>
-              <div className="space-y-1">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-mono font-black uppercase tracking-wider border ${
-                  deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO')
-                    ? 'bg-amber-200 text-amber-900 border-amber-400'
-                    : 'bg-red-200 text-red-900 border-red-400'
-                }`}>
-                  {deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO') ? '🛡️ AÇÃO DE PROTEÇÃO' : '⚠️ ALERTA DE ELIMINAÇÃO'}
-                </span>
-                <h3 className="text-base sm:text-lg font-black uppercase text-black font-mono tracking-tight">
-                  {deathLog.text.includes('PROTEGIDO') || deathLog.text.includes('SALVO') ? 'Alvo Protegido com Sucesso!' : 'Tragédia na Calada da Noite'}
-                </h3>
-              </div>
-              <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-inner">
-                <p className="text-sm sm:text-base font-mono text-neutral-900 leading-relaxed font-black tracking-wide">
-                  {deathLog.text}
-                </p>
-              </div>
-            </motion.div>
-          ) : (
-            <div className="border-4 border-black p-5 rounded-3xl bg-amber-50/95 backdrop-blur-xs text-center space-y-3 shadow-2xl border-amber-950">
-              <div className="w-14 h-14 rounded-full bg-amber-500 text-black flex items-center justify-center mx-auto shadow-lg border-2 border-black">
-                <Heart size={28} className="fill-white text-white" />
-              </div>
-              <div className="space-y-1">
-                <span className="inline-block px-3 py-1 bg-amber-200 text-amber-900 rounded-full text-xs font-mono font-black uppercase tracking-wider border border-amber-400">
-                  🛡️ VIGÍLIA ABENÇOADA
-                </span>
-                <h3 className="text-base sm:text-lg font-black uppercase text-black font-mono tracking-tight">
-                  Uma Noite em Paz
-                </h3>
-              </div>
-              <div className="p-3.5 bg-white border-2 border-black rounded-2xl shadow-inner">
-                <p className="text-sm sm:text-base font-mono text-neutral-900 leading-relaxed font-black">
-                  Nenhum membro da congregação faleceu esta noite! A vigilância do Pastor e as orações guardaram os inocentes.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Conversion Miracle Notice */}
-          {conversionLog && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.22, duration: 0.3 }}
-              className="border-2 border-amber-600 bg-amber-50 p-3 rounded-2xl text-center space-y-1 shadow-md"
-            >
-              <div className="flex items-center justify-center gap-1.5 text-amber-900">
-                <Sparkles size={16} className="text-amber-600" />
-                <span className="text-xs font-black uppercase font-mono">Milagre da Fé</span>
-                <Sparkles size={16} className="text-amber-600" />
-              </div>
-              <p className="text-[11px] font-mono text-amber-950 font-bold">
-                {conversionLog.text}
-              </p>
-            </motion.div>
-          )}
-        </motion.div>
-
-        {/* Proceed Button com efeito pulsante */}
-        <motion.div
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.26, duration: 0.3 }}
-        >
-          <button
-            onClick={handleProceed}
-            disabled={hasConfirmed}
-            className={`w-full py-3.5 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-all shadow-md cursor-pointer ${
-              hasConfirmed
-                ? 'bg-emerald-600 text-white border-2 border-emerald-700 shadow-emerald-950/40'
-                : 'bg-black text-white hover:bg-neutral-800'
-            }`}
-          >
-            <FourPointStar size={14} />
-            <span>
-              {hasConfirmed
-                ? '✓ CONFIRMADO — REUNINDO REBANHO...'
-                : 'REUNIR CONGREGAÇÃO PARA O DEBATE'}
-            </span>
-            <FourPointStar size={14} />
-          </button>
-        </motion.div>
+              <FourPointStar size={14} />
+              <span>
+                {hasConfirmed
+                  ? '✓ CONFIRMADO — REUNINDO REBANHO...'
+                  : 'REUNIR CONGREGAÇÃO PARA O DEBATE'}
+              </span>
+              <FourPointStar size={14} />
+            </button>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

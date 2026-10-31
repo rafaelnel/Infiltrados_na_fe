@@ -16,37 +16,54 @@ export const GameOverView: React.FC<Props> = ({ winner, players, onRestart, isHo
   const isSheepWin = winner === 'OVELHAS';
 
   return (
-    <div className="flex-1 flex flex-col justify-between p-2 sm:p-4 space-y-3 animate-fadeIn select-none">
-      {/* Victory Header */}
-      <div className="text-center space-y-1">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">
-          <Trophy size={12} />
-          <span>Fim de Jogo</span>
+    <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-6 lg:items-center justify-between p-2 sm:p-4 space-y-3 lg:space-y-0 animate-fadeIn select-none min-h-0">
+      {/* Coluna Esquerda no Desktop: Cabeçalho de Vitória + Ilustração + Botão Jogar Novamente */}
+      <div className="lg:col-span-5 flex flex-col items-center justify-center space-y-3">
+        {/* Victory Header */}
+        <div className="text-center space-y-1">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">
+            <Trophy size={12} />
+            <span>Fim de Jogo</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-black">
+            {isSheepWin ? 'VITÓRIA DAS OVELHAS! 🐑' : 'VITÓRIA DOS SOLDADOS! 🗡️'}
+          </h2>
+          <p className="text-xs font-mono text-neutral-600 max-w-xs mx-auto">
+            {isSheepWin
+              ? 'Todos os infiltrados foram descobertos ou redimidos pela oração. A paz voltou à vila!'
+              : 'Os Soldados dominaram a congregação e assumiram o controle total da vila!'}
+          </p>
         </div>
-        <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-black">
-          {isSheepWin ? 'VITÓRIA DAS OVELHAS! 🐑' : 'VITÓRIA DOS SOLDADOS! 🗡️'}
-        </h2>
-        <p className="text-xs font-mono text-neutral-600 max-w-xs mx-auto">
-          {isSheepWin
-            ? 'Todos os infiltrados foram descobertos ou redimidos pela oração. A paz voltou à vila!'
-            : 'Os Soldados dominaram a congregação e assumiram o controle total da vila!'}
-        </p>
+
+        {/* Victor Illustration */}
+        <div className="flex justify-center items-center py-0">
+          <RoleIllustration
+            role={isSheepWin ? 'OVELHA' : 'SOLDADO'}
+            className="w-32 h-32 sm:w-36 sm:h-36 lg:w-44 lg:h-44"
+          />
+        </div>
+
+        {/* Restart Button (Visível no Desktop aqui na esquerda; também visível no Mobile abaixo da tabela) */}
+        <button
+          onClick={() => {
+            sounds.playClick();
+            onRestart();
+          }}
+          className="hidden lg:flex w-full py-3.5 bg-black text-white rounded-full items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800 cursor-pointer"
+        >
+          <FourPointStar size={14} />
+          <RefreshCw size={14} />
+          <span>JOGAR NOVAMENTE</span>
+          <FourPointStar size={14} />
+        </button>
       </div>
 
-      {/* Victor Illustration */}
-      <div className="flex justify-center items-center py-0">
-        <RoleIllustration
-          role={isSheepWin ? 'OVELHA' : 'SOLDADO'}
-          className="w-36 h-36 sm:w-40 sm:h-40"
-        />
-      </div>
-
-      {/* Full Roles Reveal Table */}
-      <div className="flex-1 flex flex-col space-y-1">
+      {/* Coluna Direita no Desktop: Tabela de Identidades Reveladas */}
+      <div className="lg:col-span-7 flex-1 flex flex-col justify-center space-y-2 min-h-0">
         <span className="text-[10px] font-mono font-bold uppercase text-neutral-600 block px-1">
           Identidades Reveladas de Todos os Membros:
         </span>
-        <div className="border-2 border-black rounded-2xl overflow-y-auto max-h-48 p-1 bg-neutral-50 text-xs font-mono">
+        <div className="border-2 border-black rounded-2xl overflow-y-auto max-h-48 lg:max-h-[340px] p-1 bg-neutral-50 text-xs font-mono">
           <table className="w-full text-left">
             <thead className="bg-black text-white text-[9px] uppercase tracking-wider">
               <tr>
@@ -92,21 +109,21 @@ export const GameOverView: React.FC<Props> = ({ winner, players, onRestart, isHo
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* Restart Button */}
-      <button
-        onClick={() => {
-          sounds.playClick();
-          onRestart();
-        }}
-        className="w-full py-3.5 bg-black text-white rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800"
-      >
-        <FourPointStar size={14} />
-        <RefreshCw size={14} />
-        <span>JOGAR NOVAMENTE</span>
-        <FourPointStar size={14} />
-      </button>
+        {/* Restart Button Mobile */}
+        <button
+          onClick={() => {
+            sounds.playClick();
+            onRestart();
+          }}
+          className="lg:hidden w-full py-3.5 bg-black text-white rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800 cursor-pointer"
+        >
+          <FourPointStar size={14} />
+          <RefreshCw size={14} />
+          <span>JOGAR NOVAMENTE</span>
+          <FourPointStar size={14} />
+        </button>
+      </div>
     </div>
   );
 };

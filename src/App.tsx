@@ -1129,7 +1129,8 @@ export default function App() {
   const handleOnlineStartGame = async (
     customDeck?: Role[],
     discussionTimeSeconds?: number,
-    modifiersConfig?: ModifiersConfig
+    modifiersConfig?: ModifiersConfig,
+    blockFirstNightElimination?: boolean
   ) => {
     if (!roomData) return;
     try {
@@ -1140,6 +1141,7 @@ export default function App() {
         customDeck,
         discussionTimeSeconds,
         modifiersConfig,
+        blockFirstNightElimination,
       };
       const data = await apiFetch(`/api/rooms/${code}/start`, {
         method: 'POST',
@@ -1576,14 +1578,16 @@ export default function App() {
     customDeck?: Role[],
     customDiscussionSeconds: number = 120,
     modifiersConfig?: ModifiersConfig,
-    playerProfiles?: LocalPlayerProfilesMap
+    playerProfiles?: LocalPlayerProfilesMap,
+    blockFirstNightElimination: boolean = false
   ) => {
     const game = createLocalGameFromRoster(
       savedRoster,
       customDeck,
       customDiscussionSeconds,
       modifiersConfig,
-      playerProfiles
+      playerProfiles,
+      blockFirstNightElimination
     );
     setLocalGame(game);
     setDiscussionSecondsLeft(customDiscussionSeconds || 120);
@@ -1681,29 +1685,43 @@ export default function App() {
     // 1. ENTRY SCREEN
     if (mode === 'ENTRY') {
       return (
-        <div className="flex-1 flex flex-col justify-between p-4 sm:p-8 space-y-4 animate-fadeIn select-none">
-          <div className="text-center space-y-1">
-            <div className="inline-block px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">
-              Dedução Social & Mistério
+        <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-8 lg:items-center justify-between p-3 sm:p-6 space-y-3 lg:space-y-0 animate-fadeIn select-none min-h-0">
+          {/* Coluna Esquerda no Desktop: Marca, Ilustração Principal e Link do Manual */}
+          <div className="lg:col-span-5 flex flex-col items-center justify-center space-y-3 text-center">
+            <div className="space-y-1">
+              <div className="inline-block px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">
+                Dedução Social & Mistério
+              </div>
+              <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-black font-sans">
+                INFILTRADO NA FÉ
+              </h2>
+              <p className="text-xs sm:text-sm font-mono font-bold text-neutral-600">
+                Vila das Ovelhas vs Soldados Infiltrados
+              </p>
             </div>
-            <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-black font-sans">
-              INFILTRADO NA FÉ
-            </h2>
-            <p className="text-xs sm:text-sm font-mono font-bold text-neutral-600">
-              Vila das Ovelhas vs Soldados Infiltrados
-            </p>
+
+            {/* Hero Doodle */}
+            <div className="flex justify-center items-center py-1">
+              <SheepIllustration className="w-36 h-36 sm:w-44 sm:h-44 lg:w-52 lg:h-52" />
+            </div>
+
+            {/* Quick Rules Link (Desktop) */}
+            <div className="hidden lg:block text-center pt-1">
+              <button
+                onClick={() => setIsManualOpen(true)}
+                className="text-xs font-mono font-bold text-black underline hover:text-neutral-600 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+              >
+                <BookOpen size={14} />
+                <span>Ver Manual do Sistema, Socket.IO e Código Python</span>
+              </button>
+            </div>
           </div>
 
-          {/* Hero Doodle */}
-          <div className="flex justify-center items-center py-2">
-            <SheepIllustration className="w-40 h-40 sm:w-52 sm:h-52" />
-          </div>
-
-          {/* Player Input Form & Modes */}
-          <div className="space-y-3 w-full max-w-md mx-auto">
+          {/* Coluna Direita no Desktop: Formulário do Jogador, Personalização e Modos de Jogo */}
+          <div className="lg:col-span-7 space-y-2.5 w-full max-w-md lg:max-w-none mx-auto">
             {/* Banner de Reconexão para caso de fechamento acidental ou desconexão prévia */}
             {savedOnlineRoom && (
-              <div className="p-3.5 bg-emerald-50 border-2 border-emerald-600 rounded-2xl space-y-2 animate-fadeIn text-left font-mono shadow-md">
+              <div className="p-3 bg-emerald-50 border-2 border-emerald-600 rounded-2xl space-y-1.5 animate-fadeIn text-left font-mono shadow-md">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-emerald-950 font-black text-xs">
                     <Sparkles size={14} className="text-emerald-700" />
@@ -1716,7 +1734,7 @@ export default function App() {
                 <p className="text-[11px] text-emerald-900 leading-snug">
                   Você estava jogando na sala <strong>{savedOnlineRoom.code}</strong> como <strong>{savedOnlineRoom.name}</strong>. Deseja retornar ao jogo agora?
                 </p>
-                <div className="flex gap-2 pt-1">
+                <div className="flex gap-2 pt-0.5">
                   <button
                     type="button"
                     onClick={() => {
@@ -1752,22 +1770,22 @@ export default function App() {
                 value={playerName}
                 onChange={e => setPlayerName(e.target.value)}
                 maxLength={18}
-                className="w-full px-4 py-2.5 border-2 border-black rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black"
+                className="w-full px-4 py-2 border-2 border-black rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-black"
               />
             </div>
 
             {errorMessage && (
-              <div className="p-2.5 border-2 border-red-900 bg-red-50 text-red-900 text-xs font-mono rounded-xl font-bold">
+              <div className="p-2 border-2 border-red-900 bg-red-50 text-red-900 text-xs font-mono rounded-xl font-bold">
                 {errorMessage}
               </div>
             )}
 
             {/* Main Action Buttons */}
-            <div className="space-y-2.5 pt-1">
+            <div className="space-y-2.5 pt-0.5">
               {/* Local Multiplayer Button */}
               <button
                 onClick={() => setIsLocalSetupOpen(true)}
-                className="w-full bg-black text-white py-3.5 rounded-full flex items-center justify-center space-x-2 text-xs sm:text-sm font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800"
+                className="w-full bg-black text-white py-3 rounded-full flex items-center justify-center space-x-2 text-xs sm:text-sm font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800 cursor-pointer"
               >
                 <Smartphone size={16} />
                 <span>PASSAR O CELULAR (MULTIPLAYER LOCAL)</span>
@@ -1853,7 +1871,7 @@ export default function App() {
                       setIsCreateRoomModalOpen(true);
                       sounds.playClick();
                     }}
-                    className="flex-1 py-2.5 border-2 border-black bg-white text-black rounded-xl text-xs font-mono font-bold uppercase hover:bg-neutral-100 transition-colors shadow-xs active:scale-95"
+                    className="flex-1 py-2.5 border-2 border-black bg-white text-black rounded-xl text-xs font-mono font-bold uppercase hover:bg-neutral-100 transition-colors shadow-xs active:scale-95 cursor-pointer"
                   >
                     Criar Sala
                   </button>
@@ -1874,7 +1892,7 @@ export default function App() {
                         setIsJoinRoomModalOpen(true);
                         sounds.playClick();
                       }}
-                      className="px-3 py-1.5 bg-black text-white rounded-xl text-xs font-mono font-bold uppercase hover:bg-neutral-800 transition-colors shadow-xs active:scale-95"
+                      className="flex-1 px-3 py-1.5 bg-black text-white rounded-xl text-xs font-mono font-bold uppercase hover:bg-neutral-800 transition-colors shadow-xs active:scale-95 cursor-pointer"
                     >
                       Entrar
                     </button>
@@ -1882,17 +1900,17 @@ export default function App() {
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Quick Rules Link */}
-          <div className="text-center pt-1">
-            <button
-              onClick={() => setIsManualOpen(true)}
-              className="text-xs font-mono font-bold text-black underline hover:text-neutral-600 transition-colors inline-flex items-center gap-1.5"
-            >
-              <BookOpen size={14} />
-              <span>Ver Manual do Sistema, Socket.IO e Código Python</span>
-            </button>
+            {/* Quick Rules Link (Mobile) */}
+            <div className="lg:hidden text-center pt-1">
+              <button
+                onClick={() => setIsManualOpen(true)}
+                className="text-xs font-mono font-bold text-black underline hover:text-neutral-600 transition-colors inline-flex items-center gap-1.5"
+              >
+                <BookOpen size={14} />
+                <span>Ver Manual do Sistema, Socket.IO e Código Python</span>
+              </button>
+            </div>
           </div>
         </div>
       );
@@ -1912,7 +1930,7 @@ export default function App() {
               animate={{ opacity: 1, x: 0, scale: 1 }}
               exit={{ opacity: 0, x: -45, scale: 0.97 }}
               transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-              className="flex-1 flex flex-col justify-between"
+              className="flex-1 flex flex-col justify-between min-h-0"
             >
               <RoleCardSecret
                 key={`local_reveal_${localGame.players[passPlayIndex]?.id}_${passPlayIndex}`}
@@ -1950,76 +1968,80 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.98 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between"
+              className="flex-1 flex flex-col justify-between min-h-0"
             >
               {!localNightUnlocked ? (
-                <div className="flex-1 flex flex-col items-center justify-between p-6 sm:p-10 text-center space-y-6 select-none bg-[#0B132B] text-white rounded-2xl">
-                  <div className="space-y-1">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1C2541] text-indigo-200 border border-indigo-400/40 rounded-full text-xs font-mono uppercase tracking-widest">
-                      <Moon size={14} className="text-indigo-300" />
-                      <span>Fase da Noite — {localGame.dayNumber}ª Noite</span>
+                <div className="flex-1 flex flex-col lg:flex-row items-center justify-between lg:justify-center lg:gap-12 p-5 sm:p-8 text-center space-y-4 lg:space-y-0 select-none bg-[#0B132B] text-white rounded-2xl">
+                  <div className="flex flex-col items-center space-y-3 lg:w-5/12">
+                    <div className="space-y-1">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1C2541] text-indigo-200 border border-indigo-400/40 rounded-full text-xs font-mono uppercase tracking-widest">
+                        <Moon size={14} className="text-indigo-300" />
+                        <span>Fase da Noite — {localGame.dayNumber}ª Noite</span>
+                      </div>
+                      <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white font-sans">
+                        AÇÃO NOTURNA SECRETA
+                      </h2>
                     </div>
-                    <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white font-sans">
-                      AÇÃO NOTURNA SECRETA
-                    </h2>
+
+                    {/* Big Padlock Icon com visual noturno */}
+                    <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-indigo-400/60 flex flex-col items-center justify-center bg-[#141E3D] shadow-inner shadow-black/60 my-1">
+                      <Lock size={44} className="text-indigo-300" />
+                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-indigo-200 mt-1">
+                        PRIVADO
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Big Padlock Icon com visual noturno */}
-                  <div className="w-32 h-32 rounded-full border-4 border-indigo-400/60 flex flex-col items-center justify-center bg-[#141E3D] shadow-inner shadow-black/60 my-2">
-                    <Lock size={48} className="text-indigo-300" />
-                    <span className="text-[10px] font-mono font-black uppercase tracking-widest text-indigo-200 mt-1">
-                      PRIVADO
-                    </span>
-                  </div>
-
-                  {/* Recipient Notice */}
-                  <div className="space-y-2 w-full max-w-sm">
-                    <p className="text-xs font-mono uppercase tracking-widest text-indigo-300 font-bold">
-                      Passe o aparelho para:
-                    </p>
-                    <div
-                      className="p-4 border-2 rounded-2xl bg-[#1C2541] shadow-lg flex items-center justify-center gap-3"
-                      style={{
-                        borderColor: livingPlayers[localNightTurnIndex]?.color || '#818CF8',
-                      }}
-                    >
-                      <PersonAvatar
-                        avatar={livingPlayers[localNightTurnIndex]?.avatar}
-                        color={livingPlayers[localNightTurnIndex]?.color || '#F59E0B'}
-                        seed={livingPlayers[localNightTurnIndex]?.name}
-                        size={44}
-                        className="border-2 border-white shrink-0"
-                      />
-                      <div className="text-left">
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className="w-3 h-3 rounded-full border border-white shrink-0"
-                            style={{
-                              backgroundColor: livingPlayers[localNightTurnIndex]?.color || '#F59E0B',
-                            }}
-                          />
-                          <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white uppercase">
-                            {livingPlayers[localNightTurnIndex]?.name}
-                          </span>
+                  <div className="flex flex-col items-center space-y-4 w-full max-w-sm lg:w-7/12">
+                    {/* Recipient Notice */}
+                    <div className="space-y-2 w-full">
+                      <p className="text-xs font-mono uppercase tracking-widest text-indigo-300 font-bold">
+                        Passe o aparelho para:
+                      </p>
+                      <div
+                        className="p-3.5 border-2 rounded-2xl bg-[#1C2541] shadow-lg flex items-center justify-center gap-3"
+                        style={{
+                          borderColor: livingPlayers[localNightTurnIndex]?.color || '#818CF8',
+                        }}
+                      >
+                        <PersonAvatar
+                          avatar={livingPlayers[localNightTurnIndex]?.avatar}
+                          color={livingPlayers[localNightTurnIndex]?.color || '#F59E0B'}
+                          seed={livingPlayers[localNightTurnIndex]?.name}
+                          size={44}
+                          className="border-2 border-white shrink-0"
+                        />
+                        <div className="text-left">
+                          <div className="flex items-center gap-1.5">
+                            <span
+                              className="w-3 h-3 rounded-full border border-white shrink-0"
+                              style={{
+                                backgroundColor: livingPlayers[localNightTurnIndex]?.color || '#F59E0B',
+                              }}
+                            />
+                            <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white uppercase">
+                              {livingPlayers[localNightTurnIndex]?.name}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <p className="text-xs font-mono text-slate-300 leading-tight pt-1">
+                        🔒 Jogador {localNightTurnIndex + 1} de {livingPlayers.length}. Não olhe para a tela! Apenas <strong>{livingPlayers[localNightTurnIndex]?.name}</strong> deve ver sua ação secreta.
+                      </p>
                     </div>
-                    <p className="text-xs font-mono text-slate-300 leading-tight pt-1">
-                      🔒 Jogador {localNightTurnIndex + 1} de {livingPlayers.length}. Não olhe para a tela! Apenas <strong>{livingPlayers[localNightTurnIndex]?.name}</strong> deve ver sua ação secreta.
-                    </p>
-                  </div>
 
-                  {/* Unlock Button */}
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setLocalNightUnlocked(true);
-                    }}
-                    className="w-full max-w-sm bg-white text-[#0B132B] py-4 px-6 rounded-full flex items-center justify-center space-x-2 active:scale-[0.97] transition-transform text-xs sm:text-sm font-black tracking-widest uppercase hover:bg-slate-200 shadow-xl shadow-indigo-950/60"
-                  >
-                    <Eye size={16} />
-                    <span>SOU EU, {livingPlayers[localNightTurnIndex]?.name.toUpperCase()} — ABRIR MINHA AÇÃO</span>
-                  </button>
+                    {/* Unlock Button */}
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        setLocalNightUnlocked(true);
+                      }}
+                      className="w-full bg-white text-[#0B132B] py-3.5 px-6 rounded-full flex items-center justify-center space-x-2 active:scale-[0.97] transition-transform text-xs sm:text-sm font-black tracking-widest uppercase hover:bg-slate-200 shadow-xl shadow-indigo-950/60 cursor-pointer"
+                    >
+                      <Eye size={16} />
+                      <span>SOU EU, {livingPlayers[localNightTurnIndex]?.name.toUpperCase()} — ABRIR MINHA AÇÃO</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <NightActionPanel
@@ -2027,6 +2049,8 @@ export default function App() {
                   player={livingPlayers[localNightTurnIndex]}
                   allPlayers={localGame.players}
                   canSelfProtectPastor={localGame.config.pastorCanSelfProtect}
+                  dayNumber={localGame.dayNumber}
+                  blockFirstNightElimination={Boolean(localGame.config.blockFirstNightElimination)}
                   onPerformAction={(targetId, secondaryTargetId, angelSacrifice, spyData) => {
                     handleLocalPlayerNightAction(
                       targetId,
@@ -2049,7 +2073,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.98 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between"
+              className="flex-1 flex flex-col justify-between min-h-0"
             >
               <DayAnnouncementView
                 dayNumber={localGame.dayNumber}
@@ -2073,178 +2097,194 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.98 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between p-4 sm:p-6 space-y-4 select-none"
+              className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-6 lg:items-center justify-between p-3 sm:p-5 space-y-3 lg:space-y-0 select-none min-h-0"
             >
-              {/* Header */}
-              <div className="text-center space-y-1">
-                <span className="text-xs font-mono uppercase bg-black text-white px-3 py-1 rounded-full font-bold">
-                  {localGame.dayNumber}º Dia — Debate Público da Vila
-                </span>
-                <h2 className="text-2xl sm:text-3xl font-black uppercase text-black font-sans">
-                  ASSEMBLEIA DA CONGREGAÇÃO
-                </h2>
-                <p className="text-xs sm:text-sm font-mono text-neutral-600 max-w-md mx-auto">
-                  Debatam livremente entre todos os irmãos presentes! Apresentem suspeitas, defesas e teorias antes do julgamento.
-                </p>
-              </div>
+              {/* Coluna Esquerda no Desktop: Cabeçalho + Cronômetro + Botão de Iniciar Votação */}
+              <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
+                {/* Header */}
+                <div className="text-center lg:text-left space-y-1">
+                  <span className="text-xs font-mono uppercase bg-black text-white px-3 py-1 rounded-full font-bold inline-block">
+                    {localGame.dayNumber}º Dia — Debate Público da Vila
+                  </span>
+                  <h2 className="text-xl sm:text-2xl lg:text-3xl font-black uppercase text-black font-sans">
+                    ASSEMBLEIA DA CONGREGAÇÃO
+                  </h2>
+                  <p className="text-xs font-mono text-neutral-600 max-w-md mx-auto lg:mx-0">
+                    Debatam livremente entre todos os irmãos presentes! Apresentem suspeitas, defesas e teorias antes do julgamento.
+                  </p>
+                </div>
 
-              {/* Bloco do Cronômetro de Debate da Assembleia */}
-              {(() => {
-                const totalDuration = localGame.config.discussionTimeSeconds || 120;
-                const minutes = Math.floor(discussionSecondsLeft / 60);
-                const seconds = discussionSecondsLeft % 60;
-                const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-                const isUrgent = discussionSecondsLeft <= 30;
-                const progressPercent = Math.min(100, Math.max(0, (discussionSecondsLeft / totalDuration) * 100));
+                {/* Bloco do Cronômetro de Debate da Assembleia */}
+                {(() => {
+                  const totalDuration = localGame.config.discussionTimeSeconds || 120;
+                  const minutes = Math.floor(discussionSecondsLeft / 60);
+                  const seconds = discussionSecondsLeft % 60;
+                  const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                  const isUrgent = discussionSecondsLeft <= 30;
+                  const progressPercent = Math.min(100, Math.max(0, (discussionSecondsLeft / totalDuration) * 100));
 
-                return (
-                  <div
-                    className={`p-4 border-3 rounded-3xl transition-all shadow-md ${
-                      isUrgent ? 'border-red-600 bg-red-50/70' : 'border-black bg-neutral-50'
-                    }`}
-                  >
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold text-white transition-colors ${
-                            isUrgent ? 'bg-red-600 animate-bounce' : 'bg-black'
-                          }`}
-                        >
-                          <Timer size={26} />
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 block">
-                            TEMPO RESTANTE PARA O DEBATE:
-                          </span>
-                          <div className="flex items-baseline gap-2">
-                            <span
-                              className={`text-3xl sm:text-4xl font-mono font-black tracking-tight ${
-                                isUrgent ? 'text-red-600 animate-pulse' : 'text-black'
-                              }`}
-                            >
-                              {formattedTime}
+                  return (
+                    <div
+                      className={`p-3.5 border-3 rounded-3xl transition-all shadow-md ${
+                        isUrgent ? 'border-red-600 bg-red-50/70' : 'border-black bg-neutral-50'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center justify-between gap-2.5">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white transition-colors shrink-0 ${
+                              isUrgent ? 'bg-red-600 animate-bounce' : 'bg-black'
+                            }`}
+                          >
+                            <Timer size={24} />
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-500 block">
+                              TEMPO RESTANTE:
                             </span>
-                            {isUrgent && (
-                              <span className="text-[10px] font-mono font-black uppercase text-red-600 bg-red-100 px-2 py-0.5 rounded-full">
-                                ⚠️ FIM IMINENTE!
+                            <div className="flex items-baseline gap-2">
+                              <span
+                                className={`text-2xl sm:text-3xl font-mono font-black tracking-tight ${
+                                  isUrgent ? 'text-red-600 animate-pulse' : 'text-black'
+                                }`}
+                              >
+                                {formattedTime}
                               </span>
-                            )}
+                              {isUrgent && (
+                                <span className="text-[9px] font-mono font-black uppercase text-red-600 bg-red-100 px-1.5 py-0.5 rounded-full">
+                                  ⚠️ FIM IMINENTE!
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {/* Controles do Timer */}
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            sounds.playClick();
-                            setIsDiscussionTimerRunning(prev => !prev);
-                          }}
-                          className="px-3 py-2 border-2 border-black rounded-xl text-xs font-mono font-bold uppercase flex items-center gap-1.5 hover:bg-neutral-200 transition-colors bg-white shadow-2xs"
-                        >
-                          {isDiscussionTimerRunning ? (
-                            <>
-                              <Pause size={14} />
-                              <span>Pausar</span>
-                            </>
-                          ) : (
-                            <>
-                              <Play size={14} />
-                              <span>Retomar</span>
-                            </>
-                          )}
-                        </button>
+                        {/* Controles do Timer */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => {
+                              sounds.playClick();
+                              setIsDiscussionTimerRunning(prev => !prev);
+                            }}
+                            className="px-2.5 py-1.5 border-2 border-black rounded-xl text-xs font-mono font-bold uppercase flex items-center gap-1 hover:bg-neutral-200 transition-colors bg-white shadow-2xs cursor-pointer"
+                          >
+                            {isDiscussionTimerRunning ? (
+                              <>
+                                <Pause size={13} />
+                                <span>Pausar</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play size={13} />
+                                <span>Retomar</span>
+                              </>
+                            )}
+                          </button>
 
-                        <button
-                          onClick={() => {
-                            sounds.playClick();
-                            setDiscussionSecondsLeft(prev => prev + 30);
-                          }}
-                          className="px-3 py-2 border-2 border-black rounded-xl text-xs font-mono font-bold uppercase hover:bg-neutral-200 transition-colors bg-white shadow-2xs"
-                          title="Adicionar mais 30 segundos"
-                        >
-                          +30s
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Barra de Progresso */}
-                    <div className="w-full h-2.5 bg-neutral-200 rounded-full overflow-hidden border border-black/20 mt-3">
-                      <div
-                        className={`h-full transition-all duration-1000 ${
-                          isUrgent ? 'bg-red-600' : 'bg-black'
-                        }`}
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
-
-                    <p className="text-[10px] font-mono text-neutral-600 text-center mt-2">
-                      ⏳ Ao zerar este timer ({Math.floor(totalDuration / 60)} min), a votação começará automaticamente!
-                    </p>
-                  </div>
-                );
-              })()}
-
-              {/* Roster de membros presentes */}
-              <div className="space-y-2 border-2 border-black rounded-2xl p-4 bg-neutral-50 max-h-52 overflow-y-auto">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-black block">
-                  Membros Presentes na Assembleia ({livingPlayers.length} vivos):
-                </span>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  <AnimatePresence>
-                    {localGame.players.map(p => (
-                      <motion.div
-                        key={p.id}
-                        layout
-                        initial={{ opacity: 0, scale: 0.94 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.94 }}
-                        transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                        className={`p-2 rounded-xl border text-xs font-mono flex items-center justify-between gap-1.5 ${
-                          p.isAlive ? 'bg-white border-black font-bold' : 'bg-neutral-200 border-neutral-300 text-neutral-500 line-through'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <PersonAvatar
-                            avatar={p.avatar}
-                            color={p.color || '#F59E0B'}
-                            seed={p.name}
-                            size={24}
-                            className="border border-black shrink-0"
-                          />
-                          <span
-                            className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
-                            style={{ backgroundColor: p.color || '#F59E0B' }}
-                          />
-                          <span className="truncate">{p.name}</span>
+                          <button
+                            onClick={() => {
+                              sounds.playClick();
+                              setDiscussionSecondsLeft(prev => prev + 30);
+                            }}
+                            className="px-2.5 py-1.5 border-2 border-black rounded-xl text-xs font-mono font-bold uppercase hover:bg-neutral-200 transition-colors bg-white shadow-2xs cursor-pointer"
+                            title="Adicionar mais 30 segundos"
+                          >
+                            +30s
+                          </button>
                         </div>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
-                            p.isAlive ? 'bg-black text-white' : 'bg-neutral-300 text-neutral-600'
+                      </div>
+
+                      {/* Barra de Progresso */}
+                      <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden border border-black/20 mt-2.5">
+                        <div
+                          className={`h-full transition-all duration-1000 ${
+                            isUrgent ? 'bg-red-600' : 'bg-black'
                           }`}
-                        >
-                          {p.isAlive ? 'Vivo' : 'Exilado'}
-                        </span>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
-                </div>
+                          style={{ width: `${progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Botão de avanço imediato para votação (Desktop) */}
+                <button
+                  onClick={() => {
+                    sounds.playGavelStrike();
+                    setLocalSubPhase('DAY_VOTING');
+                    setLocalVoteTurnIndex(0);
+                    setLocalVoteUnlocked(false);
+                  }}
+                  className="hidden lg:flex w-full py-3.5 bg-black text-white rounded-full items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800 cursor-pointer"
+                >
+                  <Scale size={16} />
+                  <span>ENCERRAR DEBATE & INICIAR VOTAÇÃO</span>
+                  <FourPointStar size={12} />
+                </button>
               </div>
 
-              {/* Botão de avanço imediato para votação */}
-              <button
-                onClick={() => {
-                  sounds.playGavelStrike();
-                  setLocalSubPhase('DAY_VOTING');
-                  setLocalVoteTurnIndex(0);
-                  setLocalVoteUnlocked(false);
-                }}
-                className="w-full py-4 bg-black text-white rounded-full flex items-center justify-center space-x-2 text-xs sm:text-sm font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800"
-              >
-                <Scale size={18} />
-                <span>ENCERRAR DEBATE & INICIAR VOTAÇÃO SECRETA</span>
-                <FourPointStar size={14} />
-              </button>
+              {/* Coluna Direita no Desktop: Roster de membros presentes */}
+              <div className="lg:col-span-7 flex flex-col justify-between space-y-3 min-h-0">
+                <div className="space-y-2 border-2 border-black rounded-2xl p-3.5 bg-neutral-50 max-h-52 lg:max-h-[320px] overflow-y-auto">
+                  <span className="text-xs font-mono font-bold uppercase tracking-wider text-black block">
+                    Membros Presentes na Assembleia ({livingPlayers.length} vivos):
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    <AnimatePresence>
+                      {localGame.players.map(p => (
+                        <motion.div
+                          key={p.id}
+                          layout
+                          initial={{ opacity: 0, scale: 0.94 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.94 }}
+                          transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+                          className={`p-2 rounded-xl border text-xs font-mono flex items-center justify-between gap-1.5 ${
+                            p.isAlive ? 'bg-white border-black font-bold' : 'bg-neutral-200 border-neutral-300 text-neutral-500 line-through'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <PersonAvatar
+                              avatar={p.avatar}
+                              color={p.color || '#F59E0B'}
+                              seed={p.name}
+                              size={24}
+                              className="border border-black shrink-0"
+                            />
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black shrink-0"
+                              style={{ backgroundColor: p.color || '#F59E0B' }}
+                            />
+                            <span className="truncate">{p.name}</span>
+                          </div>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${
+                              p.isAlive ? 'bg-black text-white' : 'bg-neutral-300 text-neutral-600'
+                            }`}
+                          >
+                            {p.isAlive ? 'Vivo' : 'Exilado'}
+                          </span>
+                        </motion.div>
+                      ))}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {/* Botão de avanço imediato para votação (Mobile) */}
+                <button
+                  onClick={() => {
+                    sounds.playGavelStrike();
+                    setLocalSubPhase('DAY_VOTING');
+                    setLocalVoteTurnIndex(0);
+                    setLocalVoteUnlocked(false);
+                  }}
+                  className="lg:hidden w-full py-3.5 bg-black text-white rounded-full flex items-center justify-center space-x-2 text-xs sm:text-sm font-mono font-black uppercase tracking-widest active:scale-95 transition-transform shadow-md hover:bg-neutral-800 cursor-pointer"
+                >
+                  <Scale size={18} />
+                  <span>ENCERRAR DEBATE & INICIAR VOTAÇÃO SECRETA</span>
+                  <FourPointStar size={14} />
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -2256,66 +2296,70 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.98 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between"
+              className="flex-1 flex flex-col justify-between min-h-0"
             >
               {!localVoteUnlocked ? (
-                <div className="flex-1 flex flex-col items-center justify-between p-6 sm:p-10 text-center space-y-6 animate-fadeIn select-none">
-                  <div className="space-y-1">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-white rounded-full text-xs font-mono uppercase tracking-widest">
-                      <Scale size={14} />
-                      <span>Julgamento da Vila — Voto Secreto</span>
-                    </div>
-                    <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-black font-sans">
-                      CABINE DE VOTAÇÃO
-                    </h2>
-                  </div>
-
-                  <div className="w-32 h-32 rounded-full border-4 border-black flex flex-col items-center justify-center bg-neutral-100 shadow-inner my-2">
-                    <Lock size={48} className="text-black" />
-                    <span className="text-[10px] font-mono font-black uppercase tracking-widest text-black mt-1">
-                      SIGILOSO
-                    </span>
-                  </div>
-
-                  <div className="space-y-2 w-full max-w-sm">
-                    <p className="text-xs font-mono uppercase tracking-widest text-neutral-500 font-bold">
-                      Passe o aparelho para o votante:
-                    </p>
-                    <div className="p-4 border-3 border-black rounded-2xl bg-white shadow-sm flex items-center justify-center gap-3">
-                      <PersonAvatar
-                        avatar={livingPlayers[localVoteTurnIndex]?.avatar}
-                        color={livingPlayers[localVoteTurnIndex]?.color || '#F59E0B'}
-                        seed={livingPlayers[localVoteTurnIndex]?.name}
-                        size={44}
-                        className="border-2 border-black shrink-0"
-                      />
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className="w-3 h-3 rounded-full border border-black shrink-0"
-                          style={{
-                            backgroundColor: livingPlayers[localVoteTurnIndex]?.color || '#F59E0B',
-                          }}
-                        />
-                        <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-black uppercase">
-                          {livingPlayers[localVoteTurnIndex]?.name}
-                        </span>
+                <div className="flex-1 flex flex-col lg:flex-row items-center justify-between lg:justify-center lg:gap-12 p-5 sm:p-8 text-center space-y-4 lg:space-y-0 animate-fadeIn select-none">
+                  <div className="flex flex-col items-center space-y-3 lg:w-5/12">
+                    <div className="space-y-1">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-white rounded-full text-xs font-mono uppercase tracking-widest">
+                        <Scale size={14} />
+                        <span>Julgamento da Vila — Voto Secreto</span>
                       </div>
+                      <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-black font-sans">
+                        CABINE DE VOTAÇÃO
+                      </h2>
                     </div>
-                    <p className="text-xs font-mono text-neutral-600 leading-tight pt-1">
-                      🗳️ Votante {localVoteTurnIndex + 1} de {livingPlayers.length}. O voto é secreto e ninguém deve ver sua escolha.
-                    </p>
+
+                    <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-black flex flex-col items-center justify-center bg-neutral-100 shadow-inner my-1">
+                      <Lock size={44} className="text-black" />
+                      <span className="text-[10px] font-mono font-black uppercase tracking-widest text-black mt-1">
+                        SIGILOSO
+                      </span>
+                    </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      setLocalVoteUnlocked(true);
-                    }}
-                    className="w-full max-w-sm bg-black text-white py-4 px-6 rounded-full flex items-center justify-center space-x-2 active:scale-[0.97] transition-transform text-xs sm:text-sm font-black tracking-widest uppercase hover:bg-neutral-800 shadow-lg"
-                  >
-                    <Eye size={16} />
-                    <span>SOU EU, {livingPlayers[localVoteTurnIndex]?.name.toUpperCase()} — ABRIR MINHA CABINE</span>
-                  </button>
+                  <div className="flex flex-col items-center space-y-4 w-full max-w-sm lg:w-7/12">
+                    <div className="space-y-2 w-full">
+                      <p className="text-xs font-mono uppercase tracking-widest text-neutral-500 font-bold">
+                        Passe o aparelho para o votante:
+                      </p>
+                      <div className="p-3.5 border-3 border-black rounded-2xl bg-white shadow-sm flex items-center justify-center gap-3">
+                        <PersonAvatar
+                          avatar={livingPlayers[localVoteTurnIndex]?.avatar}
+                          color={livingPlayers[localVoteTurnIndex]?.color || '#F59E0B'}
+                          seed={livingPlayers[localVoteTurnIndex]?.name}
+                          size={44}
+                          className="border-2 border-black shrink-0"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className="w-3 h-3 rounded-full border border-black shrink-0"
+                            style={{
+                              backgroundColor: livingPlayers[localVoteTurnIndex]?.color || '#F59E0B',
+                            }}
+                          />
+                          <span className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-black uppercase">
+                            {livingPlayers[localVoteTurnIndex]?.name}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs font-mono text-neutral-600 leading-tight pt-1">
+                        🗳️ Votante {localVoteTurnIndex + 1} de {livingPlayers.length}. O voto é secreto e ninguém deve ver sua escolha.
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        setLocalVoteUnlocked(true);
+                      }}
+                      className="w-full bg-black text-white py-3.5 px-6 rounded-full flex items-center justify-center space-x-2 active:scale-[0.97] transition-transform text-xs sm:text-sm font-black tracking-widest uppercase hover:bg-neutral-800 shadow-lg cursor-pointer"
+                    >
+                      <Eye size={16} />
+                      <span>SOU EU, {livingPlayers[localVoteTurnIndex]?.name.toUpperCase()} — ABRIR MINHA CABINE</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <VotingPanel
@@ -2340,7 +2384,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.98 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between p-6 sm:p-8 text-center space-y-6 select-none"
+              className="flex-1 flex flex-col items-center justify-center p-6 sm:p-8 text-center space-y-6 select-none"
             >
               <div className="space-y-1">
                 <span className="text-xs font-mono uppercase bg-black text-white px-3 py-1 rounded-full font-bold">
@@ -2372,7 +2416,7 @@ export default function App() {
                   setLocalNightTurnIndex(0);
                   setLocalNightUnlocked(false);
                 }}
-                className="w-full max-w-sm mx-auto py-4 bg-black text-white rounded-full text-xs sm:text-sm font-mono font-black uppercase tracking-widest hover:bg-neutral-800 transition-colors shadow-md"
+                className="w-full max-w-sm mx-auto py-4 bg-black text-white rounded-full text-xs sm:text-sm font-mono font-black uppercase tracking-widest hover:bg-neutral-800 transition-colors shadow-md cursor-pointer"
               >
                 ANOITECER O DIA (PRÓXIMA NOITE)
               </button>
@@ -2387,7 +2431,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -12, scale: 0.98 }}
               transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
-              className="flex-1 flex flex-col justify-between"
+              className="flex-1 flex flex-col justify-between min-h-0"
             >
               <GameOverView
                 winner={localGame.winner || 'OVELHAS'}
@@ -2449,7 +2493,16 @@ export default function App() {
             players={lobbyPlayers}
             isHost={isHost}
             config={roomData.config}
-            onUpdateConfig={async () => {}}
+            onUpdateConfig={async (partial) => {
+              setRoomData(prev =>
+                prev
+                  ? {
+                      ...prev,
+                      config: { ...prev.config, ...partial },
+                    }
+                  : prev
+              );
+            }}
             onAddBot={handleOnlineAddBot}
             onRemoveBot={handleOnlineRemoveBot}
             onStartGame={handleOnlineStartGame}
@@ -2508,22 +2561,24 @@ export default function App() {
         const hasMeConfirmed = Boolean(me.hasConfirmedRole);
 
         return (
-          <div className="flex-1 flex flex-col justify-between p-3 sm:p-5 space-y-4">
+          <div className="flex-1 flex flex-col justify-between p-2.5 sm:p-4 space-y-2 min-h-0">
             <motion.div
               initial={{ opacity: 0, y: -16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35, ease: 'easeOut' }}
-              className="text-center space-y-1"
+              className="flex flex-col sm:flex-row items-center justify-between gap-1 px-2 shrink-0"
             >
-              <span className="text-xs font-mono uppercase bg-black text-white px-3 py-1 rounded-full font-bold">
-                1ª Rodada — Revelação Secreta
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase bg-black text-white px-2.5 py-0.5 rounded-full font-bold">
+                  1ª Rodada — Revelação Secreta
+                </span>
+                <h2 className="text-sm sm:text-base font-black uppercase text-black font-mono">
+                  Sua Identidade na Vila
+                </h2>
+              </div>
+              <span className="text-[11px] font-mono text-neutral-600 font-bold">
+                {totalConfirmed} de {totalLiving} prontos
               </span>
-              <h2 className="text-lg sm:text-xl font-black uppercase text-black font-mono">
-                Sua Identidade na Vila
-              </h2>
-              <p className="text-xs font-mono text-neutral-600">
-                Apenas você pode ver sua carta neste aparelho. Mantenha em segredo!
-              </p>
             </motion.div>
 
             <AnimatePresence mode="wait">
@@ -2534,50 +2589,54 @@ export default function App() {
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.96, y: -20 }}
                   transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                  className="flex-1 flex flex-col items-center justify-between p-3 sm:p-4 border-3 border-black rounded-3xl bg-neutral-50 text-center space-y-3"
+                  className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-between p-3 sm:p-4 border-3 border-black rounded-3xl bg-neutral-50 text-center space-y-3 lg:space-y-0 min-h-0"
                 >
-                  {/* Status compacto com confirmação e contagem */}
-                  <div className="w-full flex items-center justify-between bg-emerald-100/90 border-2 border-emerald-600/40 rounded-2xl p-2.5">
-                    <div className="flex items-center gap-2.5 text-left">
-                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
-                        <UserCheck size={18} />
+                  {/* Coluna Esquerda no Desktop: Status de confirmação e controle do Host */}
+                  <div className="w-full lg:col-span-5 flex flex-col justify-center space-y-3">
+                    <div className="w-full flex flex-col items-center lg:items-start gap-2.5 bg-emerald-100/90 border-2 border-emerald-600/40 rounded-2xl p-3.5 text-center lg:text-left">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs shrink-0">
+                          <UserCheck size={20} />
+                        </div>
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-black uppercase font-mono text-emerald-950 leading-tight">
+                            Papel Confirmado! ({me.role})
+                          </h3>
+                          <p className="text-[10px] font-mono text-emerald-800 leading-tight">
+                            Aguardando os outros membros da congregação...
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-xs sm:text-sm font-black uppercase font-mono text-emerald-950 leading-tight">
-                          Papel Confirmado! ({me.role})
-                        </h3>
-                        <p className="text-[10px] font-mono text-emerald-800 leading-tight">
-                          Aguardando os outros membros da congregação...
-                        </p>
+                      <div className="px-3 py-1 bg-white border border-emerald-600 rounded-full text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-xs">
+                        <RefreshCw size={11} className="animate-spin text-emerald-700" />
+                        <span>{totalConfirmed} de {totalLiving} prontos</span>
                       </div>
                     </div>
-                    <div className="px-2.5 py-1 bg-white border border-emerald-600 rounded-full text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-xs shrink-0">
-                      <RefreshCw size={11} className="animate-spin text-emerald-700" />
-                      <span>{totalConfirmed} de {totalLiving} prontos</span>
-                    </div>
+
+                    {isHost && (
+                      <button
+                        onClick={handleOnlineAdvancePhase}
+                        className="w-full py-3 px-6 bg-black text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 transition-colors cursor-pointer active:scale-95 shadow-md"
+                      >
+                        Iniciar Noite Agora (Host)
+                      </button>
+                    )}
                   </div>
 
-                  {/* O CERCADO DAS OVELHAS: Andar de um lado para o outro e falar "MEH" */}
-                  <SheepCorralWaiting
-                    currentPlayer={me}
-                    allPlayers={roomData.players.filter(p => p.isAlive)}
-                    title="Cercado de Espera da Vila"
-                    subtitle="Você virou uma ovelhinha no pasto! Ande e fale 'MEH' enquanto aguarda."
-                    waitingCountText={`${totalConfirmed} de ${totalLiving} prontos`}
-                    isNight={false}
-                    onSendSheepEvent={handleSendSheepEvent}
-                    incomingSheepEvent={incomingSheepEvent}
-                    syncedSheepMap={syncedSheepMap}
-                  />
-
-                  {isHost && (
-                    <button
-                      onClick={handleOnlineAdvancePhase}
-                      className="w-full py-2.5 px-6 bg-black text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 transition-colors cursor-pointer active:scale-95 shadow-md"
-                    >
-                      Iniciar Noite Agora (Host)
-                    </button>
-                  )}
+                  {/* Coluna Direita no Desktop: O CERCADO DAS OVELHAS */}
+                  <div className="w-full lg:col-span-7">
+                    <SheepCorralWaiting
+                      currentPlayer={me}
+                      allPlayers={roomData.players.filter(p => p.isAlive)}
+                      title="Cercado de Espera da Vila"
+                      subtitle="Você virou uma ovelhinha no pasto! Ande e fale 'MEH' enquanto aguarda."
+                      waitingCountText={`${totalConfirmed} de ${totalLiving} prontos`}
+                      isNight={false}
+                      onSendSheepEvent={handleSendSheepEvent}
+                      incomingSheepEvent={incomingSheepEvent}
+                      syncedSheepMap={syncedSheepMap}
+                    />
+                  </div>
                 </motion.div>
               ) : (
                 <motion.div
@@ -2586,7 +2645,7 @@ export default function App() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -28, scale: 0.96 }}
                   transition={{ type: 'spring', damping: 24, stiffness: 260 }}
-                  className="flex-1 flex flex-col justify-between"
+                  className="flex-1 flex flex-col justify-between min-h-0"
                 >
                   <RoleCardSecret
                     role={me.role}
@@ -2598,9 +2657,6 @@ export default function App() {
                     onConfirm={handleOnlineConfirmRole}
                     hideAvatar={false}
                   />
-                  <div className="mt-2 text-center text-[11px] font-mono text-neutral-500">
-                    {totalConfirmed} de {totalLiving} jogadores já confirmaram
-                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -2615,37 +2671,38 @@ export default function App() {
         // Se o jogador foi eliminado
         if (!me.isAlive) {
           return (
-            <div className="flex-1 flex flex-col justify-between p-3 sm:p-4 bg-[#0B132B] text-white rounded-2xl animate-fadeIn space-y-3">
-              <div className="text-center space-y-1 mt-1">
+            <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-between p-3 sm:p-4 bg-[#0B132B] text-white rounded-2xl animate-fadeIn space-y-3 lg:space-y-0 min-h-0">
+              <div className="lg:col-span-5 text-center lg:text-left space-y-3">
                 <div className="inline-block px-3 py-1 bg-neutral-800 text-neutral-300 border border-neutral-600 rounded-full text-xs font-mono uppercase font-bold">
                   ✝️ Espectador / Eliminado
                 </div>
-                <h3 className="text-base font-black uppercase font-mono text-white">Você está em repouso</h3>
-                <p className="text-xs font-mono text-slate-300 max-w-xs mx-auto">
+                <h3 className="text-lg font-black uppercase font-mono text-white">Você está em repouso</h3>
+                <p className="text-xs font-mono text-slate-300 max-w-xs mx-auto lg:mx-0">
                   A noite caiu e os sobreviventes estão agindo em segredo. Divirta-se no cercado enquanto espera o amanhecer!
                 </p>
+                {isHost && (
+                  <button
+                    onClick={handleOnlineAdvancePhase}
+                    className="w-full py-2.5 bg-neutral-800 text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-black cursor-pointer"
+                  >
+                    Avançar Noite Imediatamente (Host)
+                  </button>
+                )}
               </div>
 
-              <SheepCorralWaiting
-                currentPlayer={me}
-                allPlayers={roomData.players}
-                title="Aprisco Noturno dos Espíritos"
-                subtitle="Ande pelo pasto sob o luar e fale 'MEH'!"
-                waitingCountText="Aguardando amanhecer..."
-                isNight={true}
-                onSendSheepEvent={handleSendSheepEvent}
-                incomingSheepEvent={incomingSheepEvent}
-                syncedSheepMap={syncedSheepMap}
-              />
-
-              {isHost && (
-                <button
-                  onClick={handleOnlineAdvancePhase}
-                  className="w-full py-2.5 bg-neutral-800 text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-black"
-                >
-                  Avançar Noite Imediatamente (Host)
-                </button>
-              )}
+              <div className="w-full lg:col-span-7">
+                <SheepCorralWaiting
+                  currentPlayer={me}
+                  allPlayers={roomData.players}
+                  title="Aprisco Noturno dos Espíritos"
+                  subtitle="Ande pelo pasto sob o luar e fale 'MEH'!"
+                  waitingCountText="Aguardando amanhecer..."
+                  isNight={true}
+                  onSendSheepEvent={handleSendSheepEvent}
+                  incomingSheepEvent={incomingSheepEvent}
+                  syncedSheepMap={syncedSheepMap}
+                />
+              </div>
             </div>
           );
         }
@@ -2655,80 +2712,89 @@ export default function App() {
           const totalLiving = roomData.players.filter(p => p.isAlive).length;
           const totalActed = roomData.players.filter(p => p.isAlive && p.hasActedTonight).length;
           return (
-            <div className="flex-1 flex flex-col justify-between p-3 sm:p-4 bg-[#0B132B] text-white rounded-2xl animate-fadeIn space-y-3">
-              <div className="text-center space-y-1 mt-1">
-                <div className="inline-block px-3 py-1 bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 rounded-full text-xs font-mono uppercase font-bold">
-                  ✓ Ação Noturna Registrada
+            <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-between p-3 sm:p-4 bg-[#0B132B] text-white rounded-2xl animate-fadeIn space-y-3 lg:space-y-0 min-h-0">
+              <div className="w-full lg:col-span-5 flex flex-col justify-center space-y-3">
+                <div className="text-center lg:text-left space-y-1">
+                  <div className="inline-block px-3 py-1 bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 rounded-full text-xs font-mono uppercase font-bold">
+                    ✓ Ação Noturna Registrada
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black uppercase font-mono text-white">
+                    Aguardando os Demais Irmãos Agirem
+                  </h3>
+                  <p className="text-xs font-mono text-slate-300 max-w-xs mx-auto lg:mx-0">
+                    Sua ação foi selada. Enquanto os outros concluem seus turnos na calada da noite, divirta-se no cercado!
+                  </p>
                 </div>
-                <h3 className="text-base font-black uppercase font-mono text-white">
-                  Aguardando os Demais Irmãos Agirem
-                </h3>
-                <p className="text-xs font-mono text-slate-300 max-w-xs mx-auto">
-                  Sua ação foi selada. Enquanto os outros concluem seus turnos na calada da noite, divirta-se no cercado!
-                </p>
+
+                {me.team === 'SOLDADOS' && (
+                  <div className="mt-1">
+                    <ChatPanel
+                      messages={roomData.messages}
+                      currentPlayer={me}
+                      players={roomData.players}
+                      onSendMessage={handleOnlineChat}
+                    />
+                  </div>
+                )}
+
+                {isHost && (
+                  <button
+                    onClick={handleOnlineAdvancePhase}
+                    className="w-full py-2.5 bg-neutral-800 text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-black cursor-pointer"
+                  >
+                    Avançar Noite Imediatamente (Host)
+                  </button>
+                )}
               </div>
 
-              <SheepCorralWaiting
-                currentPlayer={me}
-                allPlayers={roomData.players}
-                title="Aprisco Noturno da Vila"
-                subtitle="Ande pelo pasto sob o luar e fale 'MEH' enquanto os outros agem!"
-                waitingCountText={`${totalActed} de ${totalLiving} prontos`}
-                isNight={true}
-                onSendSheepEvent={handleSendSheepEvent}
-                incomingSheepEvent={incomingSheepEvent}
-                syncedSheepMap={syncedSheepMap}
-              />
-
-              {me.team === 'SOLDADOS' && (
-                <div className="mt-1">
-                  <ChatPanel
-                    messages={roomData.messages}
-                    currentPlayer={me}
-                    players={roomData.players}
-                    onSendMessage={handleOnlineChat}
-                  />
-                </div>
-              )}
-
-              {isHost && (
-                <button
-                  onClick={handleOnlineAdvancePhase}
-                  className="w-full py-2.5 bg-neutral-800 text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-black cursor-pointer"
-                >
-                  Avançar Noite Imediatamente (Host)
-                </button>
-              )}
-            </div>
-          );
-        }
-
-        return (
-          <div className="flex-1 flex flex-col justify-between">
-            <NightActionPanel
-              player={me}
-              allPlayers={roomData.players}
-              canSelfProtectPastor={roomData.config.pastorCanSelfProtect}
-              soldiersList={roomData.soldiersList}
-              onPerformAction={handleOnlineNightAction}
-              onAdvanceNight={isHost ? handleOnlineAdvancePhase : undefined}
-              isHost={isHost}
-              waitingCorralNode={
+              <div className="w-full lg:col-span-7">
                 <SheepCorralWaiting
                   currentPlayer={me}
-                  allPlayers={roomData.players.filter(p => p.isAlive)}
+                  allPlayers={roomData.players}
                   title="Aprisco Noturno da Vila"
-                  subtitle="Ação noturna salva! Ande pelo pasto sob o luar e balbe 'MEH' enquanto os outros agem."
-                  waitingCountText="Aguardando a congregação..."
+                  subtitle="Ande pelo pasto sob o luar e fale 'MEH' enquanto os outros agem!"
+                  waitingCountText={`${totalActed} de ${totalLiving} prontos`}
                   isNight={true}
                   onSendSheepEvent={handleSendSheepEvent}
                   incomingSheepEvent={incomingSheepEvent}
                   syncedSheepMap={syncedSheepMap}
                 />
-              }
-            />
+              </div>
+            </div>
+          );
+        }
+
+        return (
+          <div className={`flex-1 flex flex-col min-h-0 ${me.team === 'SOLDADOS' ? 'lg:grid lg:grid-cols-12 lg:gap-4' : 'justify-between'}`}>
+            <div className={me.team === 'SOLDADOS' ? 'lg:col-span-8 flex flex-col min-h-0' : 'flex-1 flex flex-col min-h-0'}>
+              <NightActionPanel
+                player={me}
+                allPlayers={roomData.players}
+                canSelfProtectPastor={roomData.config.pastorCanSelfProtect}
+                dayNumber={roomData.dayNumber}
+                blockFirstNightElimination={Boolean(roomData.config.blockFirstNightElimination)}
+                soldiersList={roomData.soldiersList}
+                onPerformAction={handleOnlineNightAction}
+                onExecuteSpy={handleOnlineExecuteSpy}
+                onAdvanceNight={isHost ? handleOnlineAdvancePhase : undefined}
+                isHost={isHost}
+                waitingCorralNode={
+                  <SheepCorralWaiting
+                    currentPlayer={me}
+                    allPlayers={roomData.players.filter(p => p.isAlive)}
+                    title="Aprisco Noturno da Vila"
+                    subtitle="Ação noturna salva! Ande pelo pasto sob o luar e balbe 'MEH' enquanto os outros agem."
+                    waitingCountText="Aguardando a congregação..."
+                    isNight={true}
+                    onSendSheepEvent={handleSendSheepEvent}
+                    incomingSheepEvent={incomingSheepEvent}
+                    syncedSheepMap={syncedSheepMap}
+                  />
+                }
+              />
+            </div>
             {me.team === 'SOLDADOS' && (
-              <div className="mt-2">
+              <div className="mt-2 lg:mt-0 lg:col-span-4 flex flex-col min-h-0">
                 <ChatPanel
                   messages={roomData.messages}
                   currentPlayer={me}
@@ -2747,18 +2813,34 @@ export default function App() {
         const totalLiving = roomData.players.filter(p => p.isAlive).length;
         const totalApproved = roomData.players.filter(p => p.isAlive && p.hasApprovedPhase).length;
         const hasMeApproved = Boolean(me.hasApprovedPhase);
+        const showWaitingCorral = hasMeApproved || !me?.isAlive;
 
         return (
-          <div className="flex-1 flex flex-col justify-between space-y-3">
-            <DayAnnouncementView
-              dayNumber={roomData.dayNumber}
-              logs={roomData.logs}
-              onProceedToDiscussion={handleOnlineReadyPhase}
-              isHost={isHost}
-            />
+          <div className={`flex-1 flex flex-col min-h-0 ${showWaitingCorral ? 'lg:grid lg:grid-cols-12 lg:gap-5 lg:items-center' : 'justify-between'} space-y-2.5 lg:space-y-0`}>
+            <div className={showWaitingCorral ? 'lg:col-span-6 flex flex-col justify-between space-y-2.5' : 'flex-1 flex flex-col justify-between space-y-2.5'}>
+              <DayAnnouncementView
+                dayNumber={roomData.dayNumber}
+                logs={roomData.logs}
+                onProceedToDiscussion={handleOnlineReadyPhase}
+                isHost={isHost}
+              />
 
-            {(hasMeApproved || !me?.isAlive) && (
-              <div className="animate-fadeIn my-1">
+              <div className="flex items-center justify-between px-4 py-2 bg-neutral-100 border-2 border-black rounded-2xl text-xs font-mono font-bold">
+                <span>{hasMeApproved ? '✓ Você está pronto' : !me?.isAlive ? '✝️ Espectador' : 'Aguardando seu clique'}</span>
+                <span>{totalApproved} de {totalLiving} prontos</span>
+              </div>
+              {isHost && (
+                <button
+                  onClick={handleOnlineAdvancePhase}
+                  className="w-full py-2.5 bg-neutral-800 text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-black cursor-pointer"
+                >
+                  Avançar para o Debate Imediatamente (Host)
+                </button>
+              )}
+            </div>
+
+            {showWaitingCorral && (
+              <div className="lg:col-span-6 animate-fadeIn my-1 lg:my-0">
                 <SheepCorralWaiting
                   currentPlayer={me}
                   allPlayers={roomData.players}
@@ -2776,19 +2858,6 @@ export default function App() {
                 />
               </div>
             )}
-
-            <div className="flex items-center justify-between px-4 py-2 bg-neutral-100 border-2 border-black rounded-2xl text-xs font-mono font-bold">
-              <span>{hasMeApproved ? '✓ Você está pronto' : !me?.isAlive ? '✝️ Espectador' : 'Aguardando seu clique'}</span>
-              <span>{totalApproved} de {totalLiving} prontos</span>
-            </div>
-            {isHost && (
-              <button
-                onClick={handleOnlineAdvancePhase}
-                className="w-full py-2.5 bg-neutral-800 text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-black"
-              >
-                Avançar para o Debate Imediatamente (Host)
-              </button>
-            )}
           </div>
         );
       }
@@ -2804,12 +2873,13 @@ export default function App() {
         const seconds = onlineDiscussionSeconds % 60;
         const formattedTimer = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
         const isUrgent = onlineDiscussionSeconds <= 30;
+        const showSideCorral = me.isAlive && hasMeApproved;
 
         return (
-          <div className="flex-1 flex flex-col justify-between p-3 sm:p-4 space-y-3">
-            <div className="flex items-center justify-between border-2 border-black p-2.5 rounded-2xl bg-white shadow-xs">
-              <div className="space-y-0.5">
-                <span className="text-[10px] font-mono uppercase bg-black text-white px-2 py-0.5 rounded-full font-bold">
+          <div className="flex-1 flex flex-col justify-between p-2.5 sm:p-4 space-y-2.5 min-h-0">
+            <div className="flex items-center justify-between border-2 border-black p-2.5 rounded-2xl bg-white shadow-xs shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase bg-black text-white px-2.5 py-0.5 rounded-full font-bold">
                   {roomData.dayNumber}º Dia
                 </span>
                 <h3 className="text-sm font-black uppercase text-black font-mono">
@@ -2830,57 +2900,63 @@ export default function App() {
 
             {/* Jogadores eliminados não têm mais acesso ao Chat da Vila */}
             {!me.isAlive ? (
-              <div className="flex-1 flex flex-col justify-center space-y-2.5">
-                <div className="p-2.5 bg-neutral-100 border-2 border-black rounded-2xl text-center font-mono space-y-0.5">
+              <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-center space-y-2.5 lg:space-y-0 min-h-0">
+                <div className="lg:col-span-5 p-4 bg-neutral-100 border-2 border-black rounded-2xl text-center lg:text-left font-mono space-y-2">
                   <span className="inline-block px-2.5 py-0.5 bg-black text-white rounded-full text-[10px] font-bold uppercase tracking-widest">
                     ✝️ Espectador / Eliminado
                   </span>
-                  <p className="text-[11px] font-bold text-black pt-0.5">
-                    Você foi eliminado e não tem mais acesso ao Chat da Vila.
+                  <h4 className="text-sm font-black uppercase text-black">
+                    Silêncio dos Eliminados
+                  </h4>
+                  <p className="text-[11px] font-bold text-neutral-700 leading-snug">
+                    Você foi eliminado e não tem mais acesso ao Chat da Vila. Enquanto os sobreviventes debatem, divirta-se com as outras ovelhas no cercado!
                   </p>
                 </div>
 
-                <SheepCorralWaiting
-                  currentPlayer={me}
-                  allPlayers={roomData.players}
-                  title="Pasto dos Espíritos na Assembleia"
-                  subtitle="Você está no plano espiritual! Ande pelo pasto e fale 'MEH' enquanto os vivos debatem!"
-                  waitingCountText={`${totalApproved} de ${totalLiving} prontos`}
-                  isNight={false}
-                  onSendSheepEvent={handleSendSheepEvent}
-                  incomingSheepEvent={incomingSheepEvent}
-                  syncedSheepMap={syncedSheepMap}
-                />
+                <div className="w-full lg:col-span-7">
+                  <SheepCorralWaiting
+                    currentPlayer={me}
+                    allPlayers={roomData.players}
+                    title="Pasto dos Espíritos na Assembleia"
+                    subtitle="Você está no plano espiritual! Ande pelo pasto e fale 'MEH' enquanto os vivos debatem!"
+                    waitingCountText={`${totalApproved} de ${totalLiving} prontos`}
+                    isNight={false}
+                    onSendSheepEvent={handleSendSheepEvent}
+                    incomingSheepEvent={incomingSheepEvent}
+                    syncedSheepMap={syncedSheepMap}
+                  />
+                </div>
               </div>
             ) : (
-              <div className="flex-1 min-h-[220px]">
-                <ChatPanel
-                  messages={roomData.messages}
-                  currentPlayer={me}
-                  players={roomData.players}
-                  onSendMessage={handleOnlineChat}
-                />
+              <div className={`flex-1 min-h-0 ${showSideCorral ? 'flex flex-col lg:grid lg:grid-cols-12 lg:gap-4 space-y-2.5 lg:space-y-0' : 'flex flex-col'}`}>
+                <div className={showSideCorral ? 'lg:col-span-6 flex-1 min-h-[190px] flex flex-col' : 'flex-1 min-h-[210px] flex flex-col'}>
+                  <ChatPanel
+                    messages={roomData.messages}
+                    currentPlayer={me}
+                    players={roomData.players}
+                    onSendMessage={handleOnlineChat}
+                  />
+                </div>
+
+                {showSideCorral && (
+                  <div className="lg:col-span-6 animate-fadeIn">
+                    <SheepCorralWaiting
+                      currentPlayer={me}
+                      allPlayers={roomData.players}
+                      title="Pasto da Assembleia"
+                      subtitle="Você já confirmou estar pronto! Enquanto os outros concluem o debate, divirta-se no cercado!"
+                      waitingCountText={`${totalApproved} de ${totalLiving} prontos`}
+                      isNight={false}
+                      onSendSheepEvent={handleSendSheepEvent}
+                      incomingSheepEvent={incomingSheepEvent}
+                      syncedSheepMap={syncedSheepMap}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Se o jogador vivo já clicou em 'Pronto para votar', ele está esperando os outros! */}
-            {me.isAlive && hasMeApproved && (
-              <div className="animate-fadeIn my-1">
-                <SheepCorralWaiting
-                  currentPlayer={me}
-                  allPlayers={roomData.players}
-                  title="Pasto da Assembleia"
-                  subtitle="Você já confirmou estar pronto! Enquanto os outros concluem o debate, divirta-se no cercado!"
-                  waitingCountText={`${totalApproved} de ${totalLiving} prontos`}
-                  isNight={false}
-                  onSendSheepEvent={handleSendSheepEvent}
-                  incomingSheepEvent={incomingSheepEvent}
-                  syncedSheepMap={syncedSheepMap}
-                />
-              </div>
-            )}
-
-            <div className="space-y-2">
+            <div className="space-y-2 shrink-0">
               <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-100 border border-black/30 rounded-xl text-[11px] font-mono">
                 <span className={hasMeApproved ? 'text-emerald-700 font-bold' : !me.isAlive ? 'text-neutral-500' : 'text-neutral-700'}>
                   {hasMeApproved ? '✓ Pronto para votar confirmado' : !me.isAlive ? '✝️ Espectador (Sem voto)' : 'Aguardando seu clique'}
@@ -2894,86 +2970,86 @@ export default function App() {
                     type="button"
                     onClick={handleOnlineReadyPhase}
                     disabled={hasMeApproved}
-                    className={`flex-1 py-3 px-4 rounded-full text-xs font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-md ${
+                    className={`flex-1 py-3 px-4 rounded-full text-xs font-mono font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5 shadow-md cursor-pointer ${
                       hasMeApproved
                         ? 'bg-emerald-600 text-white border-2 border-emerald-700 shadow-emerald-950/40'
                         : 'bg-black text-white hover:bg-neutral-800 active:scale-95'
                     }`}
                   >
-                  {hasMeApproved ? (
+                    {hasMeApproved ? (
+                      <>
+                        <Check size={16} />
+                        <span>PRONTO PARA VOTAR (CONFIRMADO ✓)</span>
+                      </>
+                    ) : (
+                      <>
+                        <FourPointStar size={12} />
+                        <span>PRONTO PARA VOTAR</span>
+                        <FourPointStar size={12} />
+                      </>
+                    )}
+                  </button>
+
+                  {isHost && (
                     <>
-                      <Check size={16} />
-                      <span>PRONTO PARA VOTAR (CONFIRMADO ✓)</span>
-                    </>
-                  ) : (
-                    <>
-                      <FourPointStar size={12} />
-                      <span>PRONTO PARA VOTAR</span>
-                      <FourPointStar size={12} />
+                      {hostStartVoteConfirm ? (
+                        <div className="p-2.5 bg-amber-50 border-2 border-amber-600 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-2 text-left w-full sm:w-auto animate-fadeIn">
+                          <span className="text-[11px] font-mono text-amber-950 font-bold leading-tight">
+                            Iniciar votação antecipada para todos?
+                          </span>
+                          <div className="flex gap-1.5 w-full sm:w-auto">
+                            <button
+                              type="button"
+                              onClick={() => setHostStartVoteConfirm(false)}
+                              disabled={isAdvancingVote}
+                              className="flex-1 sm:flex-none py-1.5 px-3 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                sounds.playClick();
+                                setIsAdvancingVote(true);
+                                setTimeout(() => {
+                                  handleOnlineAdvancePhase();
+                                  setIsAdvancingVote(false);
+                                  setHostStartVoteConfirm(false);
+                                }, 250);
+                              }}
+                              disabled={isAdvancingVote}
+                              className={`flex-1 sm:flex-none py-1.5 px-3 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 shadow-sm ${
+                                isAdvancingVote
+                                  ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black'
+                                  : 'bg-black text-white hover:bg-neutral-800'
+                              }`}
+                            >
+                              {isAdvancingVote ? (
+                                <>
+                                  <Check size={13} />
+                                  <span>Iniciando... ✓</span>
+                                </>
+                              ) : (
+                                'Sim, Iniciar Votação'
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            sounds.playClick();
+                            setHostStartVoteConfirm(true);
+                          }}
+                          className="py-3 px-4 border-2 border-black bg-white text-black rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-100 active:scale-95 transition-all whitespace-nowrap cursor-pointer"
+                          title="Iniciar Votação Antecipada (Anfitrião)"
+                        >
+                          Começar Votação (Host)
+                        </button>
+                      )}
                     </>
                   )}
-                </button>
-
-                {isHost && (
-                  <>
-                    {hostStartVoteConfirm ? (
-                      <div className="p-2.5 bg-amber-50 border-2 border-amber-600 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-2 text-left w-full sm:w-auto animate-fadeIn">
-                        <span className="text-[11px] font-mono text-amber-950 font-bold leading-tight">
-                          Iniciar votação antecipada para todos?
-                        </span>
-                        <div className="flex gap-1.5 w-full sm:w-auto">
-                          <button
-                            type="button"
-                            onClick={() => setHostStartVoteConfirm(false)}
-                            disabled={isAdvancingVote}
-                            className="flex-1 sm:flex-none py-1.5 px-3 border border-neutral-400 bg-white rounded-xl text-[10px] font-bold uppercase hover:bg-neutral-100"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              sounds.playClick();
-                              setIsAdvancingVote(true);
-                              setTimeout(() => {
-                                handleOnlineAdvancePhase();
-                                setIsAdvancingVote(false);
-                                setHostStartVoteConfirm(false);
-                              }, 250);
-                            }}
-                            disabled={isAdvancingVote}
-                            className={`flex-1 sm:flex-none py-1.5 px-3 rounded-xl text-[10px] font-bold uppercase transition-all flex items-center justify-center gap-1 shadow-sm ${
-                              isAdvancingVote
-                                ? 'bg-emerald-600 text-white border-2 border-emerald-700 font-black'
-                                : 'bg-black text-white hover:bg-neutral-800'
-                            }`}
-                          >
-                            {isAdvancingVote ? (
-                              <>
-                                <Check size={13} />
-                                <span>Iniciando... ✓</span>
-                              </>
-                            ) : (
-                              'Sim, Iniciar Votação'
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          sounds.playClick();
-                          setHostStartVoteConfirm(true);
-                        }}
-                        className="py-3 px-4 border-2 border-black bg-white text-black rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-100 active:scale-95 transition-all whitespace-nowrap"
-                        title="Iniciar Votação Antecipada (Anfitrião)"
-                      >
-                        Começar Votação (Host)
-                      </button>
-                    )}
-                  </>
-                )}
                 </div>
               )}
             </div>
@@ -2989,37 +3065,38 @@ export default function App() {
 
         if (!me.isAlive) {
           return (
-            <div className="flex-1 flex flex-col justify-between p-3 sm:p-4 space-y-3 animate-fadeIn">
-              <div className="text-center space-y-1">
+            <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-between p-3 sm:p-4 space-y-3 lg:space-y-0 animate-fadeIn min-h-0">
+              <div className="lg:col-span-5 text-center lg:text-left space-y-2.5">
                 <div className="inline-block px-3 py-1 bg-neutral-200 border border-black text-black rounded-full text-xs font-mono uppercase font-bold">
                   ✝️ Espectador / Eliminado
                 </div>
-                <h3 className="text-base font-black uppercase font-mono">Julgamento em Andamento</h3>
-                <p className="text-[11px] font-mono text-neutral-600 max-w-xs mx-auto">
+                <h3 className="text-base sm:text-lg font-black uppercase font-mono">Julgamento em Andamento</h3>
+                <p className="text-[11px] font-mono text-neutral-600 max-w-xs mx-auto lg:mx-0">
                   Como você foi eliminado, não possui direito a voto. Enquanto os vivos votam, você virou uma ovelhinha espírito no cercado!
                 </p>
+                {isHost && (
+                  <button
+                    onClick={handleOnlineAdvancePhase}
+                    className="w-full py-2.5 bg-black text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 cursor-pointer"
+                  >
+                    Encerrar Votação (Host)
+                  </button>
+                )}
               </div>
 
-              <SheepCorralWaiting
-                currentPlayer={me}
-                allPlayers={roomData.players}
-                title="Aprisco dos Espíritos no Julgamento"
-                subtitle="Ande pelo pasto e fale 'MEH' enquanto os vivos decidem o destino da vila!"
-                waitingCountText={`${totalVoted} de ${totalLiving} votos computados`}
-                isNight={false}
-                onSendSheepEvent={handleSendSheepEvent}
-                incomingSheepEvent={incomingSheepEvent}
-                syncedSheepMap={syncedSheepMap}
-              />
-
-              {isHost && (
-                <button
-                  onClick={handleOnlineAdvancePhase}
-                  className="w-full py-2.5 bg-black text-white rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 cursor-pointer"
-                >
-                  Encerrar Votação (Host)
-                </button>
-              )}
+              <div className="w-full lg:col-span-7">
+                <SheepCorralWaiting
+                  currentPlayer={me}
+                  allPlayers={roomData.players}
+                  title="Aprisco dos Espíritos no Julgamento"
+                  subtitle="Ande pelo pasto e fale 'MEH' enquanto os vivos decidem o destino da vila!"
+                  waitingCountText={`${totalVoted} de ${totalLiving} votos computados`}
+                  isNight={false}
+                  onSendSheepEvent={handleSendSheepEvent}
+                  incomingSheepEvent={incomingSheepEvent}
+                  syncedSheepMap={syncedSheepMap}
+                />
+              </div>
             </div>
           );
         }
@@ -3029,58 +3106,62 @@ export default function App() {
           const votedPlayer = roomData.players.find(p => p.id === me.voteTargetId);
           const voteLabel = me.voteTargetId === 'ABSTAIN' ? 'Abstenção' : (votedPlayer?.name || 'Alvo Escolhido');
           return (
-            <div className="flex-1 flex flex-col justify-between p-3 sm:p-4 space-y-3 animate-fadeIn">
-              <div className="w-full flex items-center justify-between bg-emerald-100 border-2 border-emerald-600 rounded-2xl p-2.5">
-                <div className="text-left">
-                  <span className="text-[11px] font-mono uppercase font-black text-emerald-950 block">
-                    ✓ Voto Registrado: {voteLabel}
-                  </span>
-                  <p className="text-[10px] font-mono text-emerald-800">
-                    Aguardando os outros membros votarem...
+            <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-between p-3 sm:p-4 space-y-3 lg:space-y-0 animate-fadeIn min-h-0">
+              <div className="w-full lg:col-span-5 flex flex-col justify-center space-y-3">
+                <div className="w-full flex flex-col gap-2 bg-emerald-100 border-2 border-emerald-600 rounded-2xl p-3.5 text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono uppercase font-black text-emerald-950 block">
+                      ✓ Voto Registrado: {voteLabel}
+                    </span>
+                    <div className="px-2.5 py-0.5 bg-white border border-emerald-600 rounded-full text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-xs shrink-0">
+                      <RefreshCw size={11} className="animate-spin text-emerald-700" />
+                      <span>{totalVoted}/{totalLiving}</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-mono text-emerald-800">
+                    Aguardando os outros membros concluírem seus votos no tribunal...
                   </p>
                 </div>
-                <div className="px-2.5 py-1 bg-white border border-emerald-600 rounded-full text-[11px] font-mono font-bold flex items-center gap-1.5 shadow-xs shrink-0">
-                  <RefreshCw size={11} className="animate-spin text-emerald-700" />
-                  <span>{totalVoted}/{totalLiving}</span>
+
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOnlineVote('ABSTAIN')}
+                    className="w-full py-2.5 border-2 border-black rounded-full text-[11px] font-mono font-bold uppercase hover:bg-neutral-100 transition-colors cursor-pointer"
+                  >
+                    Alterar para Abstenção
+                  </button>
+                  {isHost && (
+                    <button
+                      onClick={handleOnlineAdvancePhase}
+                      className="w-full py-2.5 bg-black text-white rounded-full text-[11px] font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 cursor-pointer"
+                    >
+                      Encerrar Votação (Host)
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <SheepCorralWaiting
-                currentPlayer={me}
-                allPlayers={roomData.players}
-                title="Pasto da Assembleia"
-                subtitle="Voto registrado! Enquanto os outros membros votam, ande e fale 'MEH'!"
-                waitingCountText={`${totalVoted} de ${totalLiving} votaram`}
-                isNight={false}
-                onSendSheepEvent={handleSendSheepEvent}
-                incomingSheepEvent={incomingSheepEvent}
-                syncedSheepMap={syncedSheepMap}
-              />
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleOnlineVote('ABSTAIN')}
-                  className="flex-1 py-2.5 border-2 border-black rounded-full text-[11px] font-mono font-bold uppercase hover:bg-neutral-100 transition-colors cursor-pointer"
-                >
-                  Alterar para Abstenção
-                </button>
-                {isHost && (
-                  <button
-                    onClick={handleOnlineAdvancePhase}
-                    className="flex-1 py-2.5 bg-black text-white rounded-full text-[11px] font-mono font-bold uppercase tracking-wider hover:bg-neutral-800 cursor-pointer"
-                  >
-                    Encerrar Votação (Host)
-                  </button>
-                )}
+              <div className="w-full lg:col-span-7">
+                <SheepCorralWaiting
+                  currentPlayer={me}
+                  allPlayers={roomData.players}
+                  title="Pasto da Assembleia"
+                  subtitle="Voto registrado! Enquanto os outros membros votam, ande e fale 'MEH'!"
+                  waitingCountText={`${totalVoted} de ${totalLiving} votaram`}
+                  isNight={false}
+                  onSendSheepEvent={handleSendSheepEvent}
+                  incomingSheepEvent={incomingSheepEvent}
+                  syncedSheepMap={syncedSheepMap}
+                />
               </div>
             </div>
           );
         }
 
         return (
-          <div className="flex-1 flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-100 border-2 border-black rounded-xl text-xs font-mono font-bold">
+          <div className="flex-1 flex flex-col justify-between space-y-2 min-h-0">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-neutral-100 border-2 border-black rounded-xl text-xs font-mono font-bold shrink-0">
               <span>Escolha quem exilar</span>
               <span>{totalVoted} de {totalLiving} votos computados</span>
             </div>
@@ -3116,23 +3197,55 @@ export default function App() {
         const totalLiving = roomData.players.filter(p => p.isAlive).length;
         const totalApproved = roomData.players.filter(p => p.isAlive && p.hasApprovedPhase).length;
         const hasMeApproved = Boolean(me?.hasApprovedPhase);
+        const showWaitingCorral = hasMeApproved || !me?.isAlive;
 
         return (
-          <div className="flex-1 flex flex-col justify-between p-5 text-center space-y-4 animate-fadeIn">
-            <div className="space-y-1">
-              <span className="text-xs font-mono uppercase bg-black text-white px-3 py-1 rounded-full font-bold">
-                Resultado do Julgamento
-              </span>
-              <h3 className="text-xl sm:text-2xl font-black uppercase font-mono">Sentença Executada</h3>
-            </div>
-            <div className="p-5 border-3 border-black rounded-3xl bg-neutral-50 font-mono text-sm leading-relaxed max-w-md mx-auto shadow-sm">
-              <p className="font-bold text-black">
-                {lastLogText}
-              </p>
+          <div className={`flex-1 flex flex-col min-h-0 ${showWaitingCorral ? 'lg:grid lg:grid-cols-12 lg:gap-6 lg:items-center' : 'justify-between'} p-4 text-center space-y-4 lg:space-y-0 animate-fadeIn`}>
+            <div className={showWaitingCorral ? 'lg:col-span-5 flex flex-col justify-center space-y-4' : 'flex-1 flex flex-col justify-between space-y-4'}>
+              <div className="space-y-1">
+                <span className="text-xs font-mono uppercase bg-black text-white px-3 py-1 rounded-full font-bold">
+                  Resultado do Julgamento
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black uppercase font-mono">Sentença Executada</h3>
+              </div>
+              <div className="p-5 border-3 border-black rounded-3xl bg-neutral-50 font-mono text-sm leading-relaxed max-w-md mx-auto shadow-sm w-full">
+                <p className="font-bold text-black">
+                  {lastLogText}
+                </p>
+              </div>
+
+              <div className="space-y-2 max-w-sm mx-auto w-full">
+                <div className="text-[11px] font-mono text-neutral-600">
+                  {totalApproved} de {totalLiving} irmãos prontos para recolher ao aprisco
+                </div>
+
+                {me.isAlive && (
+                  <button
+                    onClick={handleOnlineReadyPhase}
+                    disabled={hasMeApproved}
+                    className={`w-full py-3.5 rounded-full text-xs font-mono font-black uppercase tracking-widest transition-all cursor-pointer ${
+                      hasMeApproved
+                        ? 'bg-neutral-300 text-neutral-600 border border-neutral-400'
+                        : 'bg-black text-white hover:bg-neutral-800 active:scale-95 shadow-md'
+                    }`}
+                  >
+                    {hasMeApproved ? 'AGUARDANDO O ANOITECER...' : 'CONFIRMAR E RETORNAR AO APRISCO'}
+                  </button>
+                )}
+
+                {isHost && (
+                  <button
+                    onClick={handleOnlineAdvancePhase}
+                    className="w-full py-2.5 border-2 border-black bg-white text-black rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-100 cursor-pointer"
+                  >
+                    Cair a Noite Imediatamente (Host)
+                  </button>
+                )}
+              </div>
             </div>
 
-            {(hasMeApproved || !me?.isAlive) && (
-              <div className="animate-fadeIn my-1">
+            {showWaitingCorral && (
+              <div className="lg:col-span-7 animate-fadeIn my-1 lg:my-0">
                 <SheepCorralWaiting
                   currentPlayer={me}
                   allPlayers={roomData.players}
@@ -3150,33 +3263,6 @@ export default function App() {
                 />
               </div>
             )}
-
-            <div className="space-y-2 max-w-sm mx-auto w-full">
-              <div className="text-[11px] font-mono text-neutral-600">
-                {totalApproved} de {totalLiving} irmãos prontos para recolher ao aprisco
-              </div>
-
-              <button
-                onClick={handleOnlineReadyPhase}
-                disabled={hasMeApproved}
-                className={`w-full py-3.5 rounded-full text-xs font-mono font-black uppercase tracking-widest transition-all ${
-                  hasMeApproved
-                    ? 'bg-neutral-300 text-neutral-600 border border-neutral-400'
-                    : 'bg-black text-white hover:bg-neutral-800 active:scale-95 shadow-md'
-                }`}
-              >
-                {hasMeApproved ? 'AGUARDANDO O ANOITECER...' : 'CONFIRMAR E RETORNAR AO APRISCO'}
-              </button>
-
-              {isHost && (
-                <button
-                  onClick={handleOnlineAdvancePhase}
-                  className="w-full py-2.5 border-2 border-black bg-white text-black rounded-full text-xs font-mono font-bold uppercase tracking-wider hover:bg-neutral-100"
-                >
-                  Cair a Noite Imediatamente (Host)
-                </button>
-              )}
-            </div>
           </div>
         );
       }
@@ -3305,7 +3391,14 @@ export default function App() {
             handleStartSolo(playerName || 'Você');
           } else if (mode === 'PASS_PLAY') {
             if (localGame) {
-              handleStartPassAndPlayWithRoster(localGame.players.map(p => p.name));
+              handleStartPassAndPlayWithRoster(
+                localGame.players.map(p => p.name),
+                undefined,
+                localGame.config.discussionTimeSeconds,
+                localGame.config.modifiersConfig,
+                undefined,
+                Boolean(localGame.config.blockFirstNightElimination)
+              );
             }
           }
         }}
