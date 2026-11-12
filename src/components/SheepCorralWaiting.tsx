@@ -15,13 +15,14 @@ export interface SheepEventData {
 }
 
 export interface SyncedSheepData {
-  playerId: string;
+  playerId?: string;
   x?: number;
   y?: number;
   facing?: 'left' | 'right';
   baaText?: string;
   baaTimestamp?: number;
   moveTimestamp?: number;
+  updatedAt?: number;
 }
 
 interface SheepCorralWaitingProps {

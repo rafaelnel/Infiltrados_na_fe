@@ -13,6 +13,8 @@ interface Props {
   roomCode?: string;
   phaseLabel?: string;
   isNight?: boolean;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 export const PhoneContainer: React.FC<Props> = ({
@@ -25,6 +27,8 @@ export const PhoneContainer: React.FC<Props> = ({
   roomCode,
   phaseLabel,
   isNight = false,
+  theme = 'light',
+  onToggleTheme,
 }) => {
   const [isMuted, setIsMuted] = React.useState(!sounds.enabled);
 
@@ -36,18 +40,22 @@ export const PhoneContainer: React.FC<Props> = ({
     }
   };
 
+  const isEffectiveDark = isNight || theme === 'dark';
+
   return (
     <div
       className={`min-h-screen lg:h-screen lg:max-h-screen w-full transition-all duration-700 ease-in-out font-sans flex flex-col justify-between selection:bg-black selection:text-white relative overflow-x-hidden lg:overflow-hidden ${
         isNight
           ? 'bg-gradient-to-b from-[#091124] via-[#060D20] to-[#02050E] text-white'
+          : theme === 'dark'
+          ? 'bg-gradient-to-b from-[#0d1424] via-[#090f1b] to-[#050811] text-white'
           : 'bg-gradient-to-b from-[#fbfbfe] via-[#f1f3f9] to-[#e4e8f1] text-black'
       }`}
     >
       {/* Luz ambiente de fundo no topo (Sol dourado de dia, Aura azulada à noite) */}
       <div
         className={`absolute top-0 inset-x-0 h-96 pointer-events-none transition-opacity duration-1000 ${
-          isNight
+          isEffectiveDark
             ? 'opacity-40 bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.25),transparent_70%)]'
             : 'opacity-50 bg-[radial-gradient(ellipse_at_top,_rgba(251,191,36,0.2),transparent_70%)]'
         }`}
@@ -56,7 +64,7 @@ export const PhoneContainer: React.FC<Props> = ({
       {/* Top Navbar */}
       <header
         className={`w-full shrink-0 sticky top-0 z-40 transition-all duration-700 backdrop-blur-md ${
-          isNight
+          isEffectiveDark
             ? 'bg-[#0B132B]/90 border-b-2 border-indigo-900/80 shadow-lg text-white'
             : 'bg-white/90 border-b-2 border-black shadow-xs text-black'
         }`}
@@ -159,11 +167,36 @@ export const PhoneContainer: React.FC<Props> = ({
               </button>
             )}
 
+            {onToggleTheme && (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  onToggleTheme();
+                }}
+                title={
+                  theme === 'dark' || isNight
+                    ? 'Mudar para Modo Claro ☀️ (Recomendado)'
+                    : 'Mudar para Modo Noturno 🌙'
+                }
+                className={`w-8 h-8 lg:w-9 lg:h-9 border-2 rounded-xl flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+                  isEffectiveDark
+                    ? 'border-indigo-400/60 bg-[#141E3D] text-amber-300 hover:bg-indigo-900/60 shadow-xs'
+                    : 'border-black bg-white hover:bg-neutral-100 text-black shadow-xs'
+                }`}
+              >
+                {theme === 'dark' || isNight ? (
+                  <Sun size={15} className="text-amber-400" />
+                ) : (
+                  <Moon size={15} />
+                )}
+              </button>
+            )}
+
             <button
               onClick={toggleSound}
               title={isMuted ? 'Ativar Efeitos Sonoros' : 'Silenciar Sons'}
-              className={`w-8 h-8 lg:w-9 lg:h-9 border-2 rounded-xl flex items-center justify-center transition-colors ${
-                isNight
+              className={`w-8 h-8 lg:w-9 lg:h-9 border-2 rounded-xl flex items-center justify-center transition-colors cursor-pointer ${
+                isEffectiveDark
                   ? 'border-indigo-400/60 bg-[#141E3D] text-indigo-100 hover:bg-indigo-900/60'
                   : 'border-black bg-white hover:bg-neutral-100 text-black'
               }`}
@@ -180,6 +213,8 @@ export const PhoneContainer: React.FC<Props> = ({
           className={`w-full flex-1 min-h-0 transition-all duration-700 rounded-3xl overflow-y-auto lg:overflow-hidden flex flex-col p-3 sm:p-4 lg:p-5 shadow-2xl relative ${
             isNight
               ? 'bg-gradient-to-b from-[#0E172E] via-[#0B132B] to-[#070D1E] border-2 border-indigo-500/50 text-white shadow-indigo-950/60 shadow-[0_0_50px_rgba(79,70,229,0.12)]'
+              : theme === 'dark'
+              ? 'bg-gradient-to-b from-[#131d36] via-[#0f172a] to-[#0b1220] border-2 sm:border-[3px] border-slate-700 text-white shadow-2xl shadow-black/50'
               : 'bg-gradient-to-b from-white via-neutral-50/95 to-white border-2 sm:border-[3px] border-black text-black shadow-xl shadow-stone-900/10 shadow-[0_0_50px_rgba(245,158,11,0.06)]'
           }`}
         >

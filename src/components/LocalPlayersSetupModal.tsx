@@ -1022,8 +1022,8 @@ export const LocalPlayersSetupModal: React.FC<Props> = ({
             <AvatarCustomizerModal
               isOpen={true}
               onClose={() => setCustomizingPlayerIdx(null)}
-              initialAvatar={currentProf.avatar}
-              initialColor={currentProf.color}
+              avatar={currentProf.avatar}
+              color={currentProf.color}
               playerName={targetName}
               takenColors={otherTakenColors}
               onSave={(newAvatar, newColor) => {

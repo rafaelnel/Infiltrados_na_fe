@@ -24,6 +24,8 @@ import { PersonAvatar, encodeAvatar, generateRandomCharacterConfig } from './com
 import { AvatarCustomizerModal, pickRandomAvailableColor } from './components/AvatarCustomizerModal';
 import { sounds } from './utils/audio';
 import { Player, Role, Team, Phase, ChatMessage, GameConfig, RoomState, ModifiersConfig } from './types/game';
+import { useTheme } from './hooks/useTheme';
+import { DarkModeSuggestionBanner } from './components/DarkModeSuggestionBanner';
 
 const DEFAULT_SERVER_URL = 'https://infiltrados-na-fe.onrender.com';
 import {
@@ -72,6 +74,16 @@ export default function App() {
   const [isManualOpen, setIsManualOpen] = useState(false);
   const [isLocalSetupOpen, setIsLocalSetupOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // Theme & Dark Mode Detection Hook
+  const {
+    theme,
+    isSystemDark,
+    showDarkSuggestion,
+    setTheme,
+    toggleTheme,
+    dismissSuggestion,
+  } = useTheme();
 
   // Online Room State
   const [playerName, setPlayerName] = useState('');
@@ -926,7 +938,7 @@ export default function App() {
           if (payload && typeof payload.x === 'number' && typeof payload.y === 'number') {
             const ts = Number(payload.t) || msg.timestamp || Date.now();
             const existing = syncedSheepRef.current[msg.senderId];
-            if (!existing || ts > existing.updatedAt) {
+            if (!existing || !existing.updatedAt || ts > existing.updatedAt) {
               syncedSheepRef.current[msg.senderId] = {
                 x: payload.x,
                 y: payload.y,
@@ -1280,6 +1292,25 @@ export default function App() {
       }
     } catch (e: any) {
       console.error('Erro na ação noturna:', e);
+    }
+  };
+
+  const handleOnlineExecuteSpy = async (targetId: string) => {
+    if (!roomData) return { role: '', team: '', name: '' };
+    try {
+      const data = await apiFetch(`/api/rooms/${roomData.code}/spy-action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: myPlayerId, targetId }),
+      });
+      return {
+        role: data?.targetRole || '',
+        team: data?.targetTeam || '',
+        name: data?.targetName || '',
+      };
+    } catch (e) {
+      console.error('Erro ao executar ação do espião:', e);
+      return { role: '', team: '', name: '' };
     }
   };
 
@@ -1719,6 +1750,16 @@ export default function App() {
 
           {/* Coluna Direita no Desktop: Formulário do Jogador, Personalização e Modos de Jogo */}
           <div className="lg:col-span-7 space-y-2.5 w-full max-w-md lg:max-w-none mx-auto">
+            {/* Sugestão de mudar para Modo Claro caso o Modo Noturno do celular esteja ativado */}
+            {showDarkSuggestion && (
+              <DarkModeSuggestionBanner
+                theme={theme}
+                onToggleTheme={toggleTheme}
+                onSetTheme={setTheme}
+                onDismiss={dismissSuggestion}
+              />
+            )}
+
             {/* Banner de Reconexão para caso de fechamento acidental ou desconexão prévia */}
             {savedOnlineRoom && (
               <div className="p-3 bg-emerald-50 border-2 border-emerald-600 rounded-2xl space-y-1.5 animate-fadeIn text-left font-mono shadow-md">
@@ -3355,6 +3396,26 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Sugestão Flutuante de Modo Claro quando fora da tela ENTRY caso o celular esteja no Modo Noturno */}
+      <AnimatePresence>
+        {mode !== 'ENTRY' && showDarkSuggestion && (
+          <motion.div
+            initial={{ opacity: 0, y: -25, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.96 }}
+            transition={{ duration: 0.3 }}
+            className="fixed top-14 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-md shadow-2xl"
+          >
+            <DarkModeSuggestionBanner
+              theme={theme}
+              onToggleTheme={toggleTheme}
+              onSetTheme={setTheme}
+              onDismiss={dismissSuggestion}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <PhoneContainer
         title="INFILTRADO NA FÉ"
         onOpenManual={() => setIsManualOpen(true)}
@@ -3362,6 +3423,8 @@ export default function App() {
         onDisconnect={mode === 'ONLINE' && roomData ? () => setIsDisconnectModalOpen(true) : undefined}
         showSettings={showSettings}
         roomCode={roomData?.code}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         isNight={
           (mode === 'PASS_PLAY' && localSubPhase === 'NIGHT_ACTIONS') ||
           (mode === 'SOLO' && soloGame?.phase === 'NIGHT') ||
@@ -3411,6 +3474,8 @@ export default function App() {
         }}
         isOnline={mode === 'ONLINE'}
         isHost={mode === 'ONLINE' ? roomData?.hostId === myPlayerId : true}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* Modal de Configuração e Salvamento de Jogadores Locais */}

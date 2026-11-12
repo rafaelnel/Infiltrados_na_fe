@@ -396,6 +396,19 @@ async function startServer() {
 
   app.use(express.json({ limit: '5mb' }));
 
+  const publicDir = path.join(__dirname, 'public');
+  if (fs.existsSync(publicDir)) {
+    app.use(express.static(publicDir));
+  }
+  app.get('/favicon.ico', (_req, res) => {
+    const icoPath = path.join(publicDir, 'favicon.ico');
+    if (fs.existsSync(icoPath)) {
+      res.type('image/x-icon').sendFile(icoPath);
+    } else {
+      res.sendStatus(404);
+    }
+  });
+
   // Endpoint de verificação de status do servidor
   app.get('/api/health', (_req, res) => {
     res.json({ status: 'ok', server: 'Infiltrado na Fé Engine', timestamp: Date.now() });

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, RotateCcw, Home, X, AlertTriangle, ArrowLeft, Users, LogOut, Check } from 'lucide-react';
+import { Settings, RotateCcw, Home, X, AlertTriangle, ArrowLeft, Users, LogOut, Check, Sun, Moon } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface Props {
@@ -11,6 +11,8 @@ interface Props {
   onLeaveRoom?: () => void;
   isOnline?: boolean;
   isHost?: boolean;
+  theme?: 'light' | 'dark';
+  onToggleTheme?: () => void;
 }
 
 type ConfirmAction = 'NONE' | 'RESTART' | 'LOBBY' | 'HOME' | 'LEAVE';
@@ -24,6 +26,8 @@ export const GameSettingsModal: React.FC<Props> = ({
   onLeaveRoom,
   isOnline = false,
   isHost = true,
+  theme = 'light',
+  onToggleTheme,
 }) => {
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>('NONE');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -290,6 +294,66 @@ export const GameSettingsModal: React.FC<Props> = ({
         {/* Default Menu Options */}
         {confirmAction === 'NONE' && (
           <div className="space-y-2.5">
+            {/* Seletor de Tema (Modo Claro / Modo Noturno) */}
+            {onToggleTheme && (
+              <div
+                onClick={() => {
+                  sounds.playClick();
+                  onToggleTheme();
+                }}
+                className={`p-3 border-2 rounded-xl transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                  theme === 'light'
+                    ? 'border-amber-400 bg-amber-50/70 hover:bg-amber-50'
+                    : 'border-indigo-400 bg-indigo-950/40 hover:bg-indigo-950/60'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                      theme === 'light'
+                        ? 'bg-amber-400 border-amber-600 text-black'
+                        : 'bg-indigo-600 border-indigo-400 text-white'
+                    }`}
+                  >
+                    {theme === 'light' ? <Sun size={17} /> : <Moon size={17} />}
+                  </div>
+                  <div className="min-w-0 text-left">
+                    <div className="text-xs font-black uppercase truncate">
+                      Tema: {theme === 'light' ? 'Modo Claro ☀️' : 'Modo Noturno 🌙'}
+                    </div>
+                    <div className="text-[10px] text-neutral-600 truncate">
+                      {theme === 'light'
+                        ? 'Recomendado para melhor contraste'
+                        : 'Visual escuro ativado'}
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={theme === 'light'}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sounds.playClick();
+                    onToggleTheme();
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors cursor-pointer ${
+                    theme === 'light'
+                      ? 'bg-amber-400 border-amber-600'
+                      : 'bg-neutral-700 border-neutral-500'
+                  }`}
+                  title="Alternar entre Modo Claro e Modo Noturno"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white border border-black shadow-xs transition-transform ${
+                      theme === 'light' ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+
             {/* Se for host online */}
             {isOnline && isHost && (
               <>

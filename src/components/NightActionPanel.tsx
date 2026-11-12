@@ -123,8 +123,8 @@ export const NightActionPanel: React.FC<Props> = ({
       try {
         const remote = await onExecuteSpy(spyTargetId);
         if (remote) {
-          role = remote.role;
-          team = remote.team;
+          role = remote.role as Role;
+          team = remote.team as Team;
           name = remote.name || target.name;
         }
       } catch (e) {
