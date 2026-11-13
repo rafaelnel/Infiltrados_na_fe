@@ -1,5 +1,5 @@
 import React from 'react';
-import { Volume2, VolumeX, BookOpen, Moon, Sun, Settings, LogOut } from 'lucide-react';
+import { Volume2, VolumeX, BookOpen, Moon, Sun, Settings, LogOut, GraduationCap } from 'lucide-react';
 import { sounds } from '../utils/audio';
 import { PWAInstallButton } from '../PWAInstallButton';
 
@@ -7,6 +7,7 @@ interface Props {
   children: React.ReactNode;
   title?: string;
   onOpenManual: () => void;
+  onOpenTutorial?: () => void;
   onOpenSettings?: () => void;
   showSettings?: boolean;
   onDisconnect?: () => void;
@@ -21,6 +22,7 @@ export const PhoneContainer: React.FC<Props> = ({
   children,
   title = 'INFILTRADO NA FÉ',
   onOpenManual,
+  onOpenTutorial,
   onOpenSettings,
   showSettings = false,
   onDisconnect,
@@ -123,6 +125,24 @@ export const PhoneContainer: React.FC<Props> = ({
 
             {/* Botão de Baixar / Instalar App PWA */}
             <PWAInstallButton variant="header" isNight={isNight} />
+
+            {onOpenTutorial && (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  onOpenTutorial();
+                }}
+                className={`h-8 lg:h-9 px-2.5 lg:px-3 border-2 rounded-xl flex items-center gap-1.5 transition-colors text-xs font-mono font-bold uppercase tracking-wider cursor-pointer ${
+                  isNight
+                    ? 'border-indigo-400/60 bg-[#141E3D] text-indigo-100 hover:bg-indigo-900/60'
+                    : 'border-black bg-white hover:bg-neutral-100 text-black active:bg-black active:text-white'
+                }`}
+                title="Tutorial Interativo Passo a Passo"
+              >
+                <GraduationCap size={15} className={isNight ? 'text-amber-300' : 'text-amber-500'} />
+                <span className="hidden sm:inline">Tutorial</span>
+              </button>
+            )}
 
             <button
               onClick={onOpenManual}

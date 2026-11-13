@@ -34,22 +34,20 @@ import {
   MustacheOption,
 } from './PersonAvatar';
 
-export const COLOR_PALETTE = [
-  { hex: '#F59E0B', name: 'Âmbar Dourado' },
-  { hex: '#EF4444', name: 'Rubi Carmim' },
-  { hex: '#3B82F6', name: 'Safira Celestial' },
-  { hex: '#10B981', name: 'Esmeralda' },
-  { hex: '#8B5CF6', name: 'Púrpura Real' },
-  { hex: '#EC4899', name: 'Rosa Vibrante' },
-  { hex: '#06B6D4', name: 'Ciano Rio' },
-  { hex: '#F97316', name: 'Laranja Solar' },
-  { hex: '#1F2937', name: 'Preto Ônix' },
-];
+import {
+  evaluateColorContrast,
+  getRankedPaletteForTheme,
+  suggestIdealColorForTheme,
+  COLOR_PALETTE,
+} from '../utils/contrast';
+
+export { COLOR_PALETTE };
 
 export function pickRandomAvailableColor(
   desiredColor: string | undefined,
   takenColors: string[] = [],
-  deterministicSeed?: string
+  deterministicSeed?: string,
+  theme?: 'light' | 'dark'
 ): { color: string; changed: boolean } {
   const paletteHexes = COLOR_PALETTE.map(c => c.hex.toUpperCase());
   const normalizedDesired = (desiredColor || '').trim().toUpperCase();
@@ -67,23 +65,37 @@ export function pickRandomAvailableColor(
 
   const unusedColors = paletteHexes.filter(hex => (usageCount.get(hex) || 0) === 0);
 
+  // Se o usuário já tem uma cor desejada e ela tem bom contraste com o tema atual
   if (normalizedDesired && paletteHexes.includes(normalizedDesired)) {
+    const contrastEval = theme ? evaluateColorContrast(normalizedDesired, theme) : null;
+    const hasAdequateContrast = !contrastEval || contrastEval.contrastRatio >= 3.0;
+
     const takenCount = usageCount.get(normalizedDesired) || 0;
-    if (takenCount === 0) {
+    if (takenCount === 0 && hasAdequateContrast) {
       return { color: normalizedDesired, changed: false };
     }
     // As cores só podem repetir se o número de jogadores for maior que o de cores (todas as cores ocupadas)
-    if (unusedColors.length === 0) {
+    if (unusedColors.length === 0 && hasAdequateContrast) {
       return { color: normalizedDesired, changed: false };
     }
   }
 
-  // Se houver cores livres, escolhe aleatoriamente entre as cores ainda não usadas.
-  // Se todas as cores já estiverem em uso (jogadores > cores), escolhe entre as menos repetidas.
+  // Se houver cores livres, escolhe entre as livres.
+  // Se theme for fornecido, prioriza cores com contraste ideal para o tema ativo.
   let pool = unusedColors;
   if (pool.length === 0) {
     const minUsage = Math.min(...Array.from(usageCount.values()));
     pool = paletteHexes.filter(hex => (usageCount.get(hex) || 0) === minUsage);
+  }
+
+  if (theme) {
+    const recommendedForTheme = pool.filter(hex => {
+      const evaluation = evaluateColorContrast(hex, theme);
+      return evaluation.isRecommended;
+    });
+    if (recommendedForTheme.length > 0) {
+      pool = recommendedForTheme;
+    }
   }
 
   if (deterministicSeed) {
@@ -107,6 +119,7 @@ interface Props {
   color?: string;
   playerName?: string;
   takenColors?: string[];
+  theme?: 'light' | 'dark';
   onSave: (avatar: string, color: string) => void;
 }
 
@@ -129,12 +142,14 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
   isOpen,
   onClose,
   avatar,
-  color = '#F59E0B',
+  color,
   playerName = 'Cidadão',
   takenColors = [],
+  theme = 'light',
   onSave,
 }) => {
-  const [currentColor, setCurrentColor] = useState<string>(color || '#F59E0B');
+  const defaultThemeColor = theme === 'dark' ? '#F59E0B' : '#1F2937';
+  const [currentColor, setCurrentColor] = useState<string>(color || defaultThemeColor);
   const [config, setConfig] = useState<CharacterAvatarConfig>(() => {
     try {
       const saved = localStorage.getItem('custom_avatar_config');
@@ -169,8 +184,8 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
   // Sincroniza ao abrir
   useEffect(() => {
     if (isOpen) {
-      const savedColor = color || localStorage.getItem('custom_avatar_color') || '#F59E0B';
-      const resolved = pickRandomAvailableColor(savedColor, takenColors);
+      const savedColor = color || localStorage.getItem('custom_avatar_color') || defaultThemeColor;
+      const resolved = pickRandomAvailableColor(savedColor, takenColors, undefined, theme);
       setCurrentColor(resolved.color);
       try {
         if (avatar && avatar.startsWith('custom:')) {
@@ -217,7 +232,7 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
         } catch {}
       }, 40);
     }
-  }, [isOpen, avatar, color, playerName]);
+  }, [isOpen, avatar, color, playerName, theme, defaultThemeColor]);
 
   // Alterna entre Rosto Masculino e Rosto Feminino ajustando cabelo/barba adequadamente
   const handleSelectFaceType = (newFaceType: FaceTypeOption) => {
@@ -249,24 +264,15 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
     });
   };
 
-  // Sorteia um avatar completo aleatório (rosto masculino/feminino, cabelo, chapéu, óculos, barba/bigode e cor disponível)
+  // Sorteia um avatar completo aleatório baseado na luminância do tema ativo para contraste ideal
   const handleGenerateRandomAvatar = () => {
     sounds.playClick();
     const randomCfg = generateRandomCharacterConfig();
     setConfig(randomCfg);
 
-    // Escolhe uma cor disponível aleatória (preferindo uma diferente da atual se houver mais de 1 disponível)
-    const normalizedTaken = new Set(
-      (takenColors || []).map(c => (c || '').trim().toUpperCase()).filter(Boolean)
-    );
-    const availableHexes = COLOR_PALETTE.map(c => c.hex).filter(
-      hex => !normalizedTaken.has(hex.toUpperCase())
-    );
-    const pool = availableHexes.length > 0 ? availableHexes : COLOR_PALETTE.map(c => c.hex);
-    const diffPool = pool.filter(hex => hex.toUpperCase() !== currentColor.toUpperCase());
-    const finalPool = diffPool.length > 0 ? diffPool : pool;
-    const randomColor = finalPool[Math.floor(Math.random() * finalPool.length)] || currentColor;
-    setCurrentColor(randomColor);
+    // Sugere uma cor com contraste ideal baseada na luminância do tema atual
+    const suggested = suggestIdealColorForTheme(theme, takenColors, currentColor);
+    setCurrentColor(suggested.color);
 
     // Limpa traços livres do canvas (salvando no histórico para permitir desfazer)
     const canvas = canvasRef.current;
@@ -968,7 +974,7 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* CONTEÚDO DA ABA 3: ESCOLHA DA COR DO PERSONAGEM */}
+          {/* CONTEÚDO DA ABA 3: ESCOLHA DA COR DO PERSONAGEM COM LUMINÂNCIA & CONTRASTE IDEAL */}
           {activeTab === 'color' && (() => {
             const normalizedTakenSet = new Set(
               (takenColors || []).map(tc => (tc || '').trim().toUpperCase()).filter(Boolean)
@@ -977,12 +983,59 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
               c => !normalizedTakenSet.has(c.hex.toUpperCase())
             );
             const canRepeatColors = unusedPaletteColors.length === 0;
+            const currentEval = evaluateColorContrast(currentColor, theme);
+
+            const handleApplyContrastSuggestion = () => {
+              sounds.playClick();
+              const suggested = suggestIdealColorForTheme(theme, takenColors);
+              setCurrentColor(suggested.color);
+            };
 
             return (
               <div className="space-y-2.5 animate-fadeIn">
+                {/* Banner de Luminância do Tema e Sugestão Automática */}
+                <div
+                  className={`p-2.5 rounded-2xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shadow-2xs ${
+                    theme === 'dark'
+                      ? 'bg-neutral-900 border-indigo-500/60 text-white'
+                      : 'bg-amber-50/90 border-amber-300 text-neutral-900'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-base">{theme === 'dark' ? '🌙' : '☀️'}</span>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-black uppercase flex items-center gap-1.5">
+                        <span>Tema: {theme === 'dark' ? 'Modo Noturno' : 'Modo Claro'}</span>
+                        <span
+                          className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                            currentEval.isRecommended
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-red-100 text-red-800 border border-red-300'
+                          }`}
+                        >
+                          {currentEval.isRecommended ? '✓ Contraste Ideal' : '⚠️ Contraste Baixo'}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-neutral-600 dark:text-neutral-300 font-mono">
+                        Contraste atual: <strong>{currentEval.contrastRatio.toFixed(1)}:1</strong> ({currentEval.label})
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleApplyContrastSuggestion}
+                    className="py-1.5 px-3 rounded-xl border-2 border-black bg-amber-400 hover:bg-amber-300 active:scale-95 text-black text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer shrink-0"
+                    title="Sugerir automaticamente a cor com maior contraste para este tema"
+                  >
+                    <Sparkles size={12} />
+                    <span>Sugerir Cor Ideal</span>
+                  </button>
+                </div>
+
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-bold uppercase text-neutral-600 block">
-                    Selecione a Cor Oficial do seu Personagem:
+                    Paleta Oficial com Avaliação de Contraste:
                   </span>
                   {takenColors.length > 0 && !canRepeatColors && (
                     <span className="text-[9px] font-mono text-neutral-500">
@@ -990,6 +1043,7 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
                     </span>
                   )}
                 </div>
+
                 <div className="grid grid-cols-3 gap-2">
                   {COLOR_PALETTE.map(c => {
                     const isSelected = currentColor.toUpperCase() === c.hex.toUpperCase();
@@ -997,6 +1051,7 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
                       !canRepeatColors &&
                       normalizedTakenSet.has(c.hex.toUpperCase()) &&
                       !isSelected;
+                    const evalData = evaluateColorContrast(c.hex, theme);
 
                     return (
                       <button
@@ -1008,25 +1063,52 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
                           sounds.playClick();
                           setCurrentColor(c.hex);
                         }}
-                        className={`p-2 rounded-xl border-2 flex items-center gap-2 transition-all relative ${
+                        className={`p-2 rounded-xl border-2 flex flex-col items-start gap-1 transition-all relative ${
                           isSelected
                             ? 'border-black bg-neutral-100 font-black shadow-xs ring-2 ring-black cursor-pointer'
                             : isTakenByOther
                             ? 'border-neutral-200 bg-neutral-100 opacity-45 cursor-not-allowed'
                             : 'border-neutral-200 bg-white hover:border-neutral-400 cursor-pointer'
                         }`}
-                        title={isTakenByOther ? `${c.name} já está em uso por outro jogador na sala` : c.name}
+                        title={
+                          isTakenByOther
+                            ? `${c.name} já está em uso por outro jogador`
+                            : `${c.name} - Contraste ${evalData.contrastRatio.toFixed(1)}:1 (${evalData.label})`
+                        }
                       >
-                        <span
-                          className="w-5 h-5 rounded-full border-2 border-black shrink-0 shadow-2xs"
-                          style={{ backgroundColor: c.hex }}
-                        />
-                        <div className="min-w-0 text-left flex-1">
-                          <span className="text-[10px] font-mono leading-tight truncate block">
+                        <div className="flex items-center gap-1.5 w-full">
+                          <span
+                            className="w-4 h-4 rounded-full border-2 border-black shrink-0 shadow-2xs"
+                            style={{ backgroundColor: c.hex }}
+                          />
+                          <span className="text-[10px] font-mono leading-tight truncate flex-1 text-left font-bold">
                             {c.name}
                           </span>
+                        </div>
+
+                        <div className="flex items-center justify-between w-full mt-0.5 gap-1">
+                          <span
+                            className={`text-[8px] font-mono font-bold px-1 rounded ${
+                              evalData.rating === 'AAA'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : evalData.rating === 'AA'
+                                ? 'bg-blue-100 text-blue-800'
+                                : evalData.rating === 'AA_LARGE'
+                                ? 'bg-amber-100 text-amber-800'
+                                : 'bg-red-100 text-red-700'
+                            }`}
+                          >
+                            {evalData.contrastRatio.toFixed(1)}:1
+                          </span>
+
+                          {evalData.isRecommended && (
+                            <span className="text-[8px] font-bold text-amber-700 bg-amber-100 px-1 rounded shrink-0">
+                              ⭐ Ideal
+                            </span>
+                          )}
+
                           {isTakenByOther && (
-                            <span className="text-[8px] font-mono font-bold uppercase text-red-600 block leading-none">
+                            <span className="text-[8px] font-mono font-bold uppercase text-red-600 shrink-0">
                               Em uso
                             </span>
                           )}
@@ -1035,6 +1117,15 @@ export const AvatarCustomizerModal: React.FC<Props> = ({
                     );
                   })}
                 </div>
+
+                {!currentEval.isRecommended && (
+                  <div className="p-2 rounded-xl bg-red-50 border border-red-300 text-[10px] text-red-900 flex items-center gap-1.5">
+                    <span className="font-bold">⚠️ Dica de Contraste:</span>
+                    <span>
+                      A cor atual tem contraste baixo ({currentEval.contrastRatio.toFixed(1)}:1) com este tema. Recomendamos escolher uma cor marcada com <strong>⭐ Ideal</strong>.
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })()}

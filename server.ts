@@ -49,6 +49,7 @@ export interface Player {
   hasConfirmedRole?: boolean;
   hasApprovedPhase?: boolean;
   disconnected?: boolean;
+  isSpectator?: boolean;
 }
 
 export interface ChatMessage {
@@ -85,6 +86,7 @@ export interface Room {
     revealRolesOnDeath: boolean;
     pastorCanSelfProtect: boolean;
     blockFirstNightElimination?: boolean;
+    hostIsSpectator?: boolean;
     discussionTimeSeconds: number;
     votingTimeSeconds: number;
     nightTimeSeconds: number;
@@ -274,11 +276,19 @@ function broadcastRoom(room: Room) {
   }
 }
 
+// Retorna apenas os jogadores ativos na partida (exclui o Host caso esteja em Modo Telão / Espectador)
+function getActiveGamePlayers(room: Room): Player[] {
+  return room.players.filter(
+    p => !p.isSpectator && !(room.config?.hostIsSpectator && p.id === room.hostId)
+  );
+}
+
 // Sanitização de dados para que papéis ocultos não vazem
 function sanitizeRoomForClients(room: Room, forPlayerId?: string) {
   const self = forPlayerId ? room.players.find(p => p.id === forPlayerId) : undefined;
-  const soldiersList = (self && self.team === 'SOLDADOS')
-    ? room.players.filter(p => p.team === 'SOLDADOS' && p.isAlive).map(p => ({ id: p.id, name: p.name }))
+  const activePlayers = getActiveGamePlayers(room);
+  const soldiersList = (self && !self.isSpectator && !(room.config?.hostIsSpectator && self.id === room.hostId) && self.team === 'SOLDADOS')
+    ? activePlayers.filter(p => p.team === 'SOLDADOS' && p.isAlive).map(p => ({ id: p.id, name: p.name }))
     : undefined;
 
   return {
@@ -299,6 +309,7 @@ function sanitizeRoomForClients(room: Room, forPlayerId?: string) {
       isAlive: p.isAlive,
       isHost: p.isHost,
       isBot: p.isBot,
+      isSpectator: Boolean(p.isSpectator || (room.config?.hostIsSpectator && p.id === room.hostId)),
       prayersReceived: p.prayersReceived,
       converted: p.converted,
       hasActedTonight: p.hasActedTonight,
@@ -317,6 +328,7 @@ function sanitizeRoomForClients(room: Room, forPlayerId?: string) {
               m.text?.startsWith('__SHEEP__:') ||
               m.text?.startsWith('__PROF__:') ||
               m.text?.startsWith('__PROFILE__:') ||
+              m.text?.startsWith('__HOST_SPEC__:') ||
               m.text === '__REQUEST_PROFILES__'
           )
         : room.messages,
@@ -419,7 +431,7 @@ async function startServer() {
   // ==========================================================================
   io.on('connection', (socket: Socket) => {
     // A) Criar Nova Sala (create-room)
-    socket.on('create-room', (data: { hostName?: string; color?: string; avatar?: string }, callback?: (res: any) => void) => {
+    socket.on('create-room', (data: { hostName?: string; color?: string; avatar?: string; hostIsSpectator?: boolean }, callback?: (res: any) => void) => {
       const hostName = (data?.hostName || '').trim();
       if (!hostName) {
         const err = { error: 'Por favor, escolha seu nome de jogador antes de criar a sala.' };
@@ -434,6 +446,7 @@ async function startServer() {
       }
 
       const hostId = 'p_' + socket.id.substring(0, 7);
+      const isSpec = Boolean(data?.hostIsSpectator);
       const hostPlayer: Player = {
         id: hostId,
         socketId: socket.id,
@@ -445,6 +458,7 @@ async function startServer() {
         isAlive: true,
         isHost: true,
         isBot: false,
+        isSpectator: isSpec,
         prayersReceived: 0,
         converted: false,
         hasActedTonight: false,
@@ -489,6 +503,7 @@ async function startServer() {
           revealRolesOnDeath: true,
           pastorCanSelfProtect: false,
           blockFirstNightElimination: false,
+          hostIsSpectator: isSpec,
           discussionTimeSeconds: 120,
           votingTimeSeconds: 60,
           nightTimeSeconds: 60,
@@ -594,7 +609,7 @@ async function startServer() {
         return;
       }
 
-      if (room.players.length >= 16) {
+      if (getActiveGamePlayers(room).length >= 16) {
         const err = { error: 'A sala atingiu o limite máximo de jogadores (16).' };
         socket.emit('join-error', err);
         if (callback) callback(err);
@@ -711,8 +726,26 @@ async function startServer() {
       if (callback) callback(payload);
     });
 
+    // B4) Alternar Modo Telão Global (Host Espectador)
+    socket.on('set-host-spectator', (data: { roomCode: string; playerId: string; hostIsSpectator: boolean }, callback?: (res: any) => void) => {
+      const code = (data?.roomCode || '').toUpperCase().trim();
+      const room = rooms.get(code);
+      if (!room || room.hostId !== data?.playerId) {
+        if (callback) callback({ success: false, error: 'Apenas o anfitrião pode alterar o Modo Telão.' });
+        return;
+      }
+      const enabled = Boolean(data.hostIsSpectator);
+      room.config.hostIsSpectator = enabled;
+      const hostPlayer = room.players.find(p => p.id === room.hostId);
+      if (hostPlayer) {
+        hostPlayer.isSpectator = enabled;
+      }
+      broadcastRoom(room);
+      if (callback) callback({ success: true, room: sanitizeRoomForClients(room, data.playerId) });
+    });
+
     // C) Iniciar Partida (start-game) - apenas o criador (host)
-    socket.on('start-game', (data: { roomCode: string; playerId: string; customDeck?: Role[]; discussionTimeSeconds?: number; modifiersConfig?: ModifiersConfig; blockFirstNightElimination?: boolean }, callback?: (res: any) => void) => {
+    socket.on('start-game', (data: { roomCode: string; playerId: string; customDeck?: Role[]; discussionTimeSeconds?: number; modifiersConfig?: ModifiersConfig; blockFirstNightElimination?: boolean; hostIsSpectator?: boolean }, callback?: (res: any) => void) => {
       const code = (data?.roomCode || '').toUpperCase().trim();
       const room = rooms.get(code);
 
@@ -722,8 +755,14 @@ async function startServer() {
         return;
       }
 
-      if (room.players.length < 5) {
-        socket.emit('error', { message: 'Mínimo de 5 jogadores para iniciar.' });
+      if (typeof data?.hostIsSpectator === 'boolean') {
+        room.config.hostIsSpectator = data.hostIsSpectator;
+        const hp = room.players.find(p => p.id === room.hostId);
+        if (hp) hp.isSpectator = data.hostIsSpectator;
+      }
+
+      if (getActiveGamePlayers(room).length < 5) {
+        socket.emit('error', { message: 'Mínimo de 5 jogadores ativos para iniciar.' });
         return;
       }
 
@@ -770,8 +809,8 @@ async function startServer() {
         player.hasConfirmedRole = true;
       }
 
-      // Se todos os humanos confirmaram, avançar para a NOITE
-      const livingHumans = room.players.filter(p => !p.isBot && p.isAlive);
+      // Se todos os humanos ativos confirmaram, avançar para a NOITE
+      const livingHumans = getActiveGamePlayers(room).filter(p => !p.isBot && p.isAlive);
       if (livingHumans.every(p => p.hasConfirmedRole)) {
         room.phase = 'NIGHT';
         simulateBotNightActions(room);
@@ -800,7 +839,7 @@ async function startServer() {
         player.hasApprovedPhase = true;
       }
 
-      const livingHumans = room.players.filter(p => !p.isBot && p.isAlive);
+      const livingHumans = getActiveGamePlayers(room).filter(p => !p.isBot && p.isAlive);
       if (livingHumans.length === 0 || livingHumans.every(p => p.hasApprovedPhase)) {
         advanceRoomPhase(room);
       }
@@ -862,13 +901,14 @@ async function startServer() {
         if (callback) callback({ success: false, error: 'Não é possível adicionar bots agora.' });
         return;
       }
-      if (room.players.length >= 16) {
+      const activeCount = getActiveGamePlayers(room).length;
+      if (activeCount >= 16) {
         if (callback) callback({ success: false, error: 'A sala já atingiu o limite de 16 participantes.' });
         return;
       }
       const currentNames = new Set(room.players.map(p => p.name));
       const availableNames = BOT_NAMES.filter(n => !currentNames.has(n));
-      const toAdd = Math.min(count, 16 - room.players.length);
+      const toAdd = Math.min(count, 16 - activeCount);
       for (let i = 0; i < toAdd; i++) {
         let botName = availableNames[i];
         if (!botName) {
@@ -1058,6 +1098,7 @@ async function startServer() {
     }
 
     const hostId = 'p_' + Math.random().toString(36).substring(2, 9);
+    const isSpec = Boolean(req.body.hostIsSpectator);
     const hostPlayer: Player = {
       id: hostId,
       name: hostName,
@@ -1068,6 +1109,7 @@ async function startServer() {
       isAlive: true,
       isHost: true,
       isBot: false,
+      isSpectator: isSpec,
       prayersReceived: 0,
       converted: false,
       hasActedTonight: false,
@@ -1108,6 +1150,7 @@ async function startServer() {
         revealRolesOnDeath: true,
         pastorCanSelfProtect: false,
         blockFirstNightElimination: false,
+        hostIsSpectator: isSpec,
         discussionTimeSeconds: 90,
         votingTimeSeconds: 45,
         nightTimeSeconds: 45,
@@ -1312,14 +1355,15 @@ async function startServer() {
       return res.status(400).json({ error: 'Não é possível adicionar bots agora.' });
     }
 
-    if (room.players.length >= 16) {
+    const activeCount = getActiveGamePlayers(room).length;
+    if (activeCount >= 16) {
       return res.status(400).json({ error: 'A sala atingiu o limite de 16 participantes.' });
     }
 
     const currentNames = new Set(room.players.map(p => p.name));
     const availableNames = BOT_NAMES.filter(n => !currentNames.has(n));
 
-    const toAdd = Math.min(count, 16 - room.players.length);
+    const toAdd = Math.min(count, 16 - activeCount);
     for (let i = 0; i < toAdd; i++) {
       let botName = availableNames[i];
       if (!botName) {
@@ -1414,16 +1458,43 @@ async function startServer() {
     });
   });
 
+  // Alternar Modo Telão Global (Host Espectador) via REST
+  app.post('/api/rooms/:code/host-spectator', (req: Request, res: Response) => {
+    const code = req.params.code.toUpperCase();
+    const { playerId, hostIsSpectator } = req.body;
+    const room = rooms.get(code);
+
+    if (!room) return res.status(404).json({ error: 'Sala inexistente' });
+    if (room.hostId !== playerId) return res.status(403).json({ error: 'Apenas o anfitrião pode alterar o Modo Telão.' });
+
+    const enabled = Boolean(hostIsSpectator);
+    room.config.hostIsSpectator = enabled;
+    const hostPlayer = room.players.find(p => p.id === room.hostId);
+    if (hostPlayer) {
+      hostPlayer.isSpectator = enabled;
+    }
+
+    broadcastRoom(room);
+    res.json({ success: true, room: sanitizeRoomForClients(room, playerId) });
+  });
+
   // Iniciar jogo
   app.post('/api/rooms/:code/start', (req: Request, res: Response) => {
     const code = req.params.code.toUpperCase();
-    const { playerId, customDeck, discussionTimeSeconds, modifiersConfig, blockFirstNightElimination } = req.body;
+    const { playerId, customDeck, discussionTimeSeconds, modifiersConfig, blockFirstNightElimination, hostIsSpectator } = req.body;
     const room = rooms.get(code);
 
     if (!room) return res.status(404).json({ error: 'Sala inexistente' });
     if (room.hostId !== playerId) return res.status(403).json({ error: 'Apenas o anfitrião pode iniciar.' });
-    if (room.players.length < 5) {
-      return res.status(400).json({ error: 'Mínimo de 5 jogadores necessários.' });
+
+    if (typeof hostIsSpectator === 'boolean') {
+      room.config.hostIsSpectator = hostIsSpectator;
+      const hp = room.players.find(p => p.id === room.hostId);
+      if (hp) hp.isSpectator = hostIsSpectator;
+    }
+
+    if (getActiveGamePlayers(room).length < 5) {
+      return res.status(400).json({ error: 'Mínimo de 5 jogadores ativos necessários.' });
     }
 
     distributeRoles(room, customDeck, modifiersConfig);
@@ -1476,7 +1547,7 @@ async function startServer() {
       player.hasConfirmedRole = true;
     }
 
-    const livingHumans = room.players.filter(p => !p.isBot && p.isAlive);
+    const livingHumans = getActiveGamePlayers(room).filter(p => !p.isBot && p.isAlive);
     if (livingHumans.every(p => p.hasConfirmedRole)) {
       room.phase = 'NIGHT';
       simulateBotNightActions(room);
@@ -1507,7 +1578,7 @@ async function startServer() {
       player.hasApprovedPhase = true;
     }
 
-    const livingHumans = room.players.filter(p => !p.isBot && p.isAlive);
+    const livingHumans = getActiveGamePlayers(room).filter(p => !p.isBot && p.isAlive);
     if (livingHumans.length === 0 || livingHumans.every(p => p.hasApprovedPhase)) {
       advanceRoomPhase(room);
     }
@@ -1535,13 +1606,14 @@ async function startServer() {
       trimmedText.startsWith('__SHEEP__:') ||
       trimmedText.startsWith('__PROF__:') ||
       trimmedText.startsWith('__PROFILE__:') ||
+      trimmedText.startsWith('__HOST_SPEC__:') ||
       trimmedText === '__REQUEST_PROFILES__';
 
     if (!isInternalSync && !player.isAlive) {
       return res.status(403).json({ error: 'Jogadores eliminados não têm mais acesso ao chat da vila.' });
     }
 
-    // Se for mensagem interna de sincronia de ovelha ou perfil, substitui a anterior do mesmo jogador para não inflar o array
+    // Se for mensagem interna de sincronia de ovelha, perfil ou modo telão, substitui a anterior do mesmo jogador para não inflar o array
     if (trimmedText.startsWith('__SHEEP__:')) {
       room.messages = room.messages.filter(
         m => !(m.senderId === player.id && m.text.startsWith('__SHEEP__:'))
@@ -1550,6 +1622,15 @@ async function startServer() {
       room.messages = room.messages.filter(
         m => !(m.senderId === player.id && m.text.startsWith('__PROF__:'))
       );
+    } else if (trimmedText.startsWith('__HOST_SPEC__:')) {
+      room.messages = room.messages.filter(
+        m => !m.text.startsWith('__HOST_SPEC__:')
+      );
+      if (player.id === room.hostId) {
+        const enabled = trimmedText === '__HOST_SPEC__:1';
+        room.config.hostIsSpectator = enabled;
+        player.isSpectator = enabled;
+      }
     }
 
     const newMsg: ChatMessage = {
@@ -1941,7 +2022,8 @@ async function startServer() {
 // ============================================================================
 
 function distributeRoles(room: Room, customDeck?: Role[], customModifiersConfig?: ModifiersConfig) {
-  const n = room.players.length;
+  const activePlayers = getActiveGamePlayers(room);
+  const n = activePlayers.length;
   let roleDeck: Role[] = [];
 
   if (customDeck && customDeck.length === n) {
@@ -1969,8 +2051,21 @@ function distributeRoles(room: Room, customDeck?: Role[], customModifiersConfig?
     [roleDeck[i], roleDeck[j]] = [roleDeck[j], roleDeck[i]];
   }
 
-  room.players.forEach((p, idx) => {
+  // Se o Host estiver em modo Telão/Espectador, marca ele como espectador confirmado para nunca travar fases
+  room.players.forEach(p => {
+    if (p.isSpectator || (room.config?.hostIsSpectator && p.id === room.hostId)) {
+      p.isSpectator = true;
+      p.isAlive = false;
+      p.hasConfirmedRole = true;
+      p.hasActedTonight = true;
+      p.hasApprovedPhase = true;
+      p.voteTargetId = 'ABSTAIN';
+    }
+  });
+
+  activePlayers.forEach((p, idx) => {
     const assignedRole = roleDeck[idx];
+    p.isSpectator = false;
     p.role = assignedRole;
     p.team = assignedRole === 'SOLDADO' ? 'SOLDADOS' : 'OVELHAS';
     p.isAlive = true;
@@ -2003,7 +2098,7 @@ function distributeRoles(room: Room, customDeck?: Role[], customModifiersConfig?
 
   // A) Falso Profeta: Sorteado de forma aleatória para 1 jogador pertencente ao time dos Soldados
   if (modConf.falsoProfeta) {
-    const soldierPlayers = room.players.filter(p => p.role === 'SOLDADO');
+    const soldierPlayers = activePlayers.filter(p => p.role === 'SOLDADO');
     if (soldierPlayers.length > 0) {
       const chosenSoldier = soldierPlayers[Math.floor(Math.random() * soldierPlayers.length)];
       chosenSoldier.modifier = 'FALSO_PROFETA';
@@ -2012,8 +2107,7 @@ function distributeRoles(room: Room, customDeck?: Role[], customModifiersConfig?
 
   // B) Modificadores das Ovelhas: Sorteie de forma independente até 2 modificadores especiais
   // exclusivamente entre os jogadores do time das Ovelhas: Espião e Anjo
-  // Validação Obrigatória: O modificador "Anjo" e "Espião" NUNCA podem ser atribuídos ao mesmo jogador na mesma partida
-  const sheepPlayers = room.players.filter(p => p.team === 'OVELHAS');
+  const sheepPlayers = activePlayers.filter(p => p.team === 'OVELHAS');
   const shuffledSheep = [...sheepPlayers].sort(() => Math.random() - 0.5);
 
   let sheepIndex = 0;
@@ -2030,8 +2124,9 @@ function distributeRoles(room: Room, customDeck?: Role[], customModifiersConfig?
 }
 
 function simulateBotNightActions(room: Room) {
-  const aliveBots = room.players.filter(p => p.isBot && p.isAlive);
-  const alivePlayers = room.players.filter(p => p.isAlive);
+  const activePlayers = getActiveGamePlayers(room);
+  const aliveBots = activePlayers.filter(p => p.isBot && p.isAlive);
+  const alivePlayers = activePlayers.filter(p => p.isAlive);
 
   for (const bot of aliveBots) {
     if (bot.role === 'SOLDADO') {
@@ -2074,8 +2169,9 @@ function simulateBotNightActions(room: Room) {
 }
 
 function simulateBotVotes(room: Room) {
-  const aliveBots = room.players.filter(p => p.isBot && p.isAlive);
-  const alivePlayers = room.players.filter(p => p.isAlive);
+  const activePlayers = getActiveGamePlayers(room);
+  const aliveBots = activePlayers.filter(p => p.isBot && p.isAlive);
+  const alivePlayers = activePlayers.filter(p => p.isAlive);
 
   for (const bot of aliveBots) {
     const candidates = alivePlayers.filter(p => p.id !== bot.id);
@@ -2088,7 +2184,7 @@ function simulateBotVotes(room: Room) {
 }
 
 function checkAndResolveNightIfReady(room: Room) {
-  const livingPlayers = room.players.filter(p => p.isAlive);
+  const livingPlayers = getActiveGamePlayers(room).filter(p => p.isAlive);
   const allActed = livingPlayers.length > 0 && livingPlayers.every(p => p.hasActedTonight);
   if (allActed) {
     resolveNightActions(room);
@@ -2096,7 +2192,7 @@ function checkAndResolveNightIfReady(room: Room) {
 }
 
 function checkAndResolveVotesIfReady(room: Room) {
-  const livingPlayers = room.players.filter(p => p.isAlive);
+  const livingPlayers = getActiveGamePlayers(room).filter(p => p.isAlive);
   const allVoted = livingPlayers.length > 0 && livingPlayers.every(p => p.voteTargetId !== null);
   if (allVoted) {
     resolveDayVotes(room);
@@ -2104,7 +2200,8 @@ function checkAndResolveVotesIfReady(room: Room) {
 }
 
 function resolveNightActions(room: Room) {
-  const pastor = room.players.find(p => p.role === 'PASTOR' && p.isAlive);
+  const activePlayers = getActiveGamePlayers(room);
+  const pastor = activePlayers.find(p => p.role === 'PASTOR' && p.isAlive);
   const protectedTargetId = pastor ? pastor.nightActionTargetId : null;
   if (pastor && pastor.nightActionTargetId) {
     pastor.lastProtectedId = pastor.nightActionTargetId;
@@ -2112,7 +2209,7 @@ function resolveNightActions(room: Room) {
 
   // Soldados kill target
   // Regra: Quando os soldados forem dois ou mais cada um seleciona um nome, se forem nomes iguais a pessoa morre. Se não, entre os dois escolhidos será sorteado o que morrerá.
-  const soldiers = room.players.filter(p => p.role === 'SOLDADO' && p.isAlive && !p.converted);
+  const soldiers = activePlayers.filter(p => p.role === 'SOLDADO' && p.isAlive && !p.converted);
   let killTargetId: string | null = null;
   if (soldiers.length > 0) {
     const chosenTargetIds = soldiers
@@ -2139,9 +2236,9 @@ function resolveNightActions(room: Room) {
   }
 
   // Evangelista: Requer orar DUAS vezes no mesmo Soldado para convertê-lo. Limite: 1 conversão por partida.
-  const evangelista = room.players.find(p => p.role === 'EVANGELISTA' && p.isAlive);
+  const evangelista = activePlayers.find(p => p.role === 'EVANGELISTA' && p.isAlive);
   if (evangelista && evangelista.nightActionTargetId) {
-    const prayedTarget = room.players.find(p => p.id === evangelista.nightActionTargetId);
+    const prayedTarget = activePlayers.find(p => p.id === evangelista.nightActionTargetId);
     if (prayedTarget) {
       prayedTarget.prayersReceived += 1;
       if (
@@ -2167,10 +2264,10 @@ function resolveNightActions(room: Room) {
   }
 
   // Apóstolo: Compara 2 jogadores
-  const apostolo = room.players.find(p => p.role === 'APOSTOLO' && p.isAlive);
+  const apostolo = activePlayers.find(p => p.role === 'APOSTOLO' && p.isAlive);
   if (apostolo && apostolo.nightActionTargetId && apostolo.nightActionSecondaryId) {
-    const t1 = room.players.find(p => p.id === apostolo.nightActionTargetId);
-    const t2 = room.players.find(p => p.id === apostolo.nightActionSecondaryId);
+    const t1 = activePlayers.find(p => p.id === apostolo.nightActionTargetId);
+    const t2 = activePlayers.find(p => p.id === apostolo.nightActionSecondaryId);
     if (t1 && t2) {
       const sameTeam = t1.team === t2.team;
       apostolo.lastInspectionResult = sameTeam
@@ -2180,9 +2277,9 @@ function resolveNightActions(room: Room) {
   }
 
   // Profeta: Revela APENAS a equipe ("Soldado" ou "Ovelha"). Falso Profeta aparece como Ovelha na 1ª vez.
-  const profeta = room.players.find(p => p.role === 'PROFETA' && p.isAlive);
+  const profeta = activePlayers.find(p => p.role === 'PROFETA' && p.isAlive);
   if (profeta && profeta.nightActionTargetId) {
-    const t = room.players.find(p => p.id === profeta.nightActionTargetId);
+    const t = activePlayers.find(p => p.id === profeta.nightActionTargetId);
     if (t) {
       t.investigationCount = (t.investigationCount || 0) + 1;
       let revealedTeam = t.team === 'SOLDADOS' ? 'Soldado' : 'Ovelha';
@@ -2194,7 +2291,7 @@ function resolveNightActions(room: Room) {
   }
 
   // Verificação de sacrifício do Anjo
-  const angel = room.players.find(
+  const angel = activePlayers.find(
     p => p.modifier === 'ANJO' && p.isAlive && p.angelSacrificeTonight && !p.angelUsed
   );
 
@@ -2210,7 +2307,7 @@ function resolveNightActions(room: Room) {
       type: 'INFO',
     });
   } else if (killTargetId) {
-    const targetCandidate = room.players.find(p => p.id === killTargetId);
+    const targetCandidate = activePlayers.find(p => p.id === killTargetId);
     const targetName = targetCandidate ? targetCandidate.name : 'O alvo';
 
     if (killTargetId === protectedTargetId) {
@@ -2227,7 +2324,7 @@ function resolveNightActions(room: Room) {
       angel.angelUsed = true;
       angel.isAlive = false;
       angel.angelSacrificeTonight = false;
-      const savedTarget = room.players.find(p => p.id === killTargetId);
+      const savedTarget = activePlayers.find(p => p.id === killTargetId);
 
       room.logs.push({
         id: 'log_' + Date.now(),
@@ -2238,7 +2335,7 @@ function resolveNightActions(room: Room) {
         type: 'DEATH',
       });
     } else {
-      const victim = room.players.find(p => p.id === killTargetId);
+      const victim = activePlayers.find(p => p.id === killTargetId);
       if (victim) {
         victim.isAlive = false;
         victimName = victim.name;
@@ -2282,7 +2379,7 @@ function resolveNightActions(room: Room) {
     channel: 'PUBLIC',
   });
 
-  room.players.forEach(p => {
+  activePlayers.forEach(p => {
     p.hasActedTonight = false;
     p.nightActionTargetId = null;
     p.nightActionSecondaryId = null;
@@ -2292,8 +2389,9 @@ function resolveNightActions(room: Room) {
 
 function resolveDayVotes(room: Room) {
   const voteTallies = new Map<string, number>();
+  const activePlayers = getActiveGamePlayers(room);
 
-  const livingPlayers = room.players.filter(p => p.isAlive);
+  const livingPlayers = activePlayers.filter(p => p.isAlive);
   for (const voter of livingPlayers) {
     if (!voter.voteTargetId || voter.voteTargetId === 'ABSTAIN') continue;
     // Mestre: Voto duplo apenas se ativado nesta rodada
@@ -2315,7 +2413,6 @@ function resolveDayVotes(room: Room) {
     }
   }
 
-  let executedPlayerName: string | null = null;
   if (isTie || !topTargetId || maxVotes === 0) {
     room.logs.push({
       id: 'log_' + Date.now(),
@@ -2326,10 +2423,9 @@ function resolveDayVotes(room: Room) {
       type: 'VOTE',
     });
   } else {
-    const executed = room.players.find(p => p.id === topTargetId);
+    const executed = activePlayers.find(p => p.id === topTargetId);
     if (executed) {
       executed.isAlive = false;
-      executedPlayerName = executed.name;
       room.logs.push({
         id: 'log_' + Date.now(),
         phase: 'DAY_VOTING',
@@ -2342,7 +2438,7 @@ function resolveDayVotes(room: Room) {
   }
 
   room.phase = 'DAY_RESULT';
-  room.players.forEach(p => {
+  activePlayers.forEach(p => {
     p.hasApprovedPhase = p.isBot;
     p.usedDoubleVoteThisRound = false;
   });
@@ -2355,7 +2451,7 @@ function resolveDayVotes(room: Room) {
 }
 
 function checkGameOver(room: Room): Team | null {
-  const alivePlayers = room.players.filter(p => p.isAlive);
+  const alivePlayers = getActiveGamePlayers(room).filter(p => p.isAlive);
   const aliveSoldiers = alivePlayers.filter(p => p.team === 'SOLDADOS');
   const aliveSheep = alivePlayers.filter(p => p.team === 'OVELHAS');
 

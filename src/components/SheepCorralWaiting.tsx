@@ -26,12 +26,13 @@ export interface SyncedSheepData {
 }
 
 interface SheepCorralWaitingProps {
-  currentPlayer: Player;
+  currentPlayer?: Player;
   allPlayers: Player[];
   title?: string;
   subtitle?: string;
   waitingCountText?: string;
   isNight?: boolean;
+  isSpectatorView?: boolean;
   onSendSheepEvent?: (event: SheepEventData) => void;
   incomingSheepEvent?: SheepEventData | null;
   syncedSheepMap?: Record<string, SyncedSheepData>;
@@ -234,13 +235,14 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
   subtitle = 'Enquanto os outros finalizam suas ações, você virou uma ovelhinha no pasto!',
   waitingCountText,
   isNight = false,
+  isSpectatorView = false,
   onSendSheepEvent,
   incomingSheepEvent,
   syncedSheepMap,
 }) => {
   const corralRef = useRef<HTMLDivElement>(null);
   const [baaCount, setBaaCount] = useState(0);
-  const [showControlsHint, setShowControlsHint] = useState(true);
+  const [showControlsHint, setShowControlsHint] = useState(!isSpectatorView);
   const [tapFeedback, setTapFeedback] = useState<{ x: number; y: number; key: number } | null>(null);
   const lastTouchTimeRef = useRef<number>(0);
   const lastProcessedBaaRef = useRef<Record<string, number>>({});
@@ -283,14 +285,20 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
   // Inicializa posições das ovelhas para todos os jogadores
   const [sheepMap, setSheepMap] = useState<Record<string, SheepState>>(() => {
     const initialMap: Record<string, SheepState> = {};
-    const playerList = [...allPlayers];
-    if (currentPlayer && !playerList.some(p => p.id === currentPlayer.id)) {
+    const playerList = allPlayers.filter(p => !p.isSpectator);
+    if (!isSpectatorView && currentPlayer && !currentPlayer.isSpectator && !playerList.some(p => p.id === currentPlayer.id)) {
       playerList.unshift(currentPlayer);
     }
-    const relevantPlayers = playerList.length > 0 ? playerList : (currentPlayer ? [currentPlayer] : []);
+    const relevantPlayers = isSpectatorView
+      ? playerList
+      : playerList.length > 0
+      ? playerList
+      : currentPlayer && !currentPlayer.isSpectator
+      ? [currentPlayer]
+      : [];
 
     relevantPlayers.forEach((p, idx) => {
-      const isMe = Boolean(currentPlayer && p.id === currentPlayer.id);
+      const isMe = Boolean(!isSpectatorView && currentPlayer && p.id === currentPlayer.id);
       const spawn = getDeterministicSpawn(p.id, idx);
       const synced = syncedSheepMap?.[p.id];
       const startX = typeof synced?.x === 'number' ? synced.x : spawn.x;
@@ -316,7 +324,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
       };
     });
 
-    if (currentPlayer && !initialMap[currentPlayer.id]) {
+    if (!isSpectatorView && currentPlayer && !currentPlayer.isSpectator && !initialMap[currentPlayer.id]) {
       const spawn = getDeterministicSpawn(currentPlayer.id, 0);
       initialMap[currentPlayer.id] = {
         id: currentPlayer.id,
@@ -344,13 +352,20 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
   useEffect(() => {
     setSheepMap(prev => {
       const next = { ...prev };
-      const playerList = [...allPlayers];
-      if (currentPlayer && !playerList.some(p => p.id === currentPlayer.id)) {
+      const playerList = allPlayers.filter(p => !p.isSpectator);
+      if (!isSpectatorView && currentPlayer && !currentPlayer.isSpectator && !playerList.some(p => p.id === currentPlayer.id)) {
         playerList.unshift(currentPlayer);
       }
 
+      const validIds = new Set(playerList.map(p => p.id));
+      Object.keys(next).forEach(id => {
+        if (!validIds.has(id)) {
+          delete next[id];
+        }
+      });
+
       playerList.forEach((p, idx) => {
-        const isCurrentMe = Boolean(currentPlayer && p.id === currentPlayer.id);
+        const isCurrentMe = Boolean(!isSpectatorView && currentPlayer && p.id === currentPlayer.id);
         if (!next[p.id]) {
           const spawn = getDeterministicSpawn(p.id, idx);
           const synced = syncedSheepMap?.[p.id];
@@ -388,7 +403,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
 
       return next;
     });
-  }, [allPlayers, currentPlayer?.id, currentPlayer?.name, currentPlayer?.color, currentPlayer?.isAlive, clampToPerspectiveCorral, getDeterministicSpawn, syncedSheepMap]);
+  }, [allPlayers, isSpectatorView, currentPlayer?.id, currentPlayer?.name, currentPlayer?.color, currentPlayer?.isAlive, currentPlayer?.isSpectator, clampToPerspectiveCorral, getDeterministicSpawn, syncedSheepMap]);
 
   // Sincronização em tempo real do mapa de posições e balidos (suporta múltiplos jogadores movendo juntos)
   useEffect(() => {
@@ -401,7 +416,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
       const next = { ...prev };
 
       for (const [playerId, data] of Object.entries(syncedSheepMap)) {
-        if (!data || playerId === currentPlayer.id) continue;
+        if (!data || (!isSpectatorView && playerId === currentPlayer?.id)) continue;
         const sheep = next[playerId];
         if (!sheep) continue;
 
@@ -465,11 +480,11 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
         });
       }, 2200);
     }
-  }, [syncedSheepMap, currentPlayer.id, clampToPerspectiveCorral]);
+  }, [syncedSheepMap, isSpectatorView, currentPlayer?.id, clampToPerspectiveCorral]);
 
   // Processa evento direto de ovelha vindo pelo socket (incomingSheepEvent)
   useEffect(() => {
-    if (!incomingSheepEvent || incomingSheepEvent.playerId === currentPlayer.id) return;
+    if (!incomingSheepEvent || (!isSpectatorView && incomingSheepEvent.playerId === currentPlayer?.id)) return;
 
     const { playerId, type, x, y, facing, text, timestamp } = incomingSheepEvent;
 
@@ -522,11 +537,12 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
         });
       }, 2200);
     }
-  }, [incomingSheepEvent, currentPlayer.id, clampToPerspectiveCorral]);
+  }, [incomingSheepEvent, isSpectatorView, currentPlayer?.id, clampToPerspectiveCorral]);
 
   // Função para mover a ovelhinha do jogador ativo (somente por clique/toque na tela)
   const moveMySheep = useCallback(
     (targetPctX: number, targetPctY: number) => {
+      if (isSpectatorView || !currentPlayer || currentPlayer.isSpectator) return;
       const { clampedX, clampedY } = clampToPerspectiveCorral(targetPctX, targetPctY);
 
       const myId = currentPlayer.id;
@@ -578,11 +594,12 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
         });
       }
     },
-    [currentPlayer.id, currentPlayer.name, currentPlayer.color, currentPlayer.isAlive, onSendSheepEvent, clampToPerspectiveCorral]
+    [isSpectatorView, currentPlayer, onSendSheepEvent, clampToPerspectiveCorral]
   );
 
   // Clique ou toque na tela para andar até o ponto (evita disparo duplo touch + click no celular)
   const handleCorralClick = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    if (isSpectatorView || !currentPlayer || currentPlayer.isSpectator) return;
     if (!corralRef.current) return;
     const now = Date.now();
     if ('touches' in e) {
@@ -617,6 +634,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
 
   // Balir: Falar "MEH!"
   const handleBaa = useCallback(() => {
+    if (isSpectatorView || !currentPlayer || currentPlayer.isSpectator) return;
     const myId = currentPlayer.id;
     const pool = currentPlayer.isAlive ? BAA_TEXTS : BAA_TEXTS_GHOST;
     const randomBaa = pool[Math.floor(Math.random() * pool.length)];
@@ -691,7 +709,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
         };
       });
     }, 2200);
-  }, [currentPlayer.id, currentPlayer.name, currentPlayer.color, currentPlayer.isAlive, onSendSheepEvent]);
+  }, [isSpectatorView, currentPlayer, onSendSheepEvent]);
 
   // Loop de física suave (interpolação e caminhada fluida em tempo real para todas as ovelhas)
   useEffect(() => {
@@ -746,7 +764,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
         const next = { ...prev };
         // Apenas bots andam sozinhos; jogadores reais só se movem clicando onde querem ir
         const botIds = Object.keys(next).filter(id => {
-          if (id === currentPlayer.id) return false;
+          if (!isSpectatorView && id === currentPlayer?.id) return false;
           const p = allPlayers.find(pl => pl.id === id);
           return Boolean(p?.isBot);
         });
@@ -789,7 +807,7 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
     }, 2800);
 
     return () => clearInterval(wanderInterval);
-  }, [currentPlayer.id, allPlayers, clampToPerspectiveCorral]);
+  }, [isSpectatorView, currentPlayer?.id, allPlayers, clampToPerspectiveCorral]);
 
   // Ordena as ovelhas por profundidade (Y) para que as da frente fiquem sobre as de trás
   const sortedSheep = Object.values(sheepMap).sort((a, b) => a.y - b.y);
@@ -1108,25 +1126,47 @@ export const SheepCorralWaiting: React.FC<SheepCorralWaitingProps> = ({
           {renderGrassTuft(114, 502, 0.75, 'gt_base_1')}
           {renderGrassTuft(624, 502, 0.75, 'gt_base_2')}
         </svg>
+        {isSpectatorView && sortedSheep.length === 0 && (
+          <div className="absolute inset-0 z-25 flex items-center justify-center p-4 pointer-events-none">
+            <div className="bg-white/95 border-2 border-black rounded-2xl px-4 py-2 text-center font-mono shadow-sm">
+              <p className="text-xs font-black uppercase text-black">Aprisco Vazio no Momento</p>
+              <p className="text-[10px] text-neutral-600">
+                Aguardando os jogadores ou bots entrarem no cercado...
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* BOTÃO DE FALAR "MEH" */}
+      {/* BOTÃO DE FALAR "MEH" OU INDICADOR DE TELÃO GLOBAL */}
       <div className="w-full pt-0.5">
-        <motion.button
-          whileTap={{ scale: 0.96, y: 2 }}
-          whileHover={{ scale: 1.01 }}
-          type="button"
-          onClick={handleBaa}
-          className="w-full py-2.5 lg:py-2 px-5 rounded-2xl bg-white hover:bg-neutral-100 active:bg-black active:text-white text-black border-2 border-black font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Volume2 size={17} className="text-black" />
-          <span>FALAR &quot;MEH!&quot; 🐑</span>
-          {baaCount > 0 && (
-            <span className="ml-1 px-2 py-0.5 bg-black text-white rounded-full text-[11px] font-bold font-mono">
-              {baaCount}x
+        {isSpectatorView ? (
+          <div className="w-full py-2 px-4 rounded-2xl bg-neutral-100 text-neutral-800 border-2 border-black font-mono text-[11px] font-bold uppercase tracking-wider flex items-center justify-between gap-2">
+            <span className="flex items-center gap-1.5 truncate">
+              <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse shrink-0" />
+              <span className="truncate">📺 Visão Global do Cercado • Jogadores ao vivo</span>
             </span>
-          )}
-        </motion.button>
+            <span className="text-[10px] bg-black text-white px-2 py-0.5 rounded-full font-black shrink-0">
+              {sortedSheep.length} {sortedSheep.length === 1 ? 'ovelha' : 'ovelhas'}
+            </span>
+          </div>
+        ) : (
+          <motion.button
+            whileTap={{ scale: 0.96, y: 2 }}
+            whileHover={{ scale: 1.01 }}
+            type="button"
+            onClick={handleBaa}
+            className="w-full py-2.5 lg:py-2 px-5 rounded-2xl bg-white hover:bg-neutral-100 active:bg-black active:text-white text-black border-2 border-black font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] active:shadow-none transition-all flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Volume2 size={17} className="text-black" />
+            <span>FALAR &quot;MEH!&quot; 🐑</span>
+            {baaCount > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-black text-white rounded-full text-[11px] font-bold font-mono">
+                {baaCount}x
+              </span>
+            )}
+          </motion.button>
+        )}
       </div>
     </div>
   );

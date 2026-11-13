@@ -23,6 +23,7 @@ import {
   Sliders,
   LogOut,
   AlertTriangle,
+  Tv,
 } from 'lucide-react';
 import { getMaxAllowedSoldiers, generateRecommendedDeck } from './LocalPlayersSetupModal';
 import { PersonAvatar, encodeAvatar, generateRandomCharacterConfig } from './PersonAvatar';
@@ -34,13 +35,15 @@ interface Props {
   isHost: boolean;
   config: GameConfig;
   onUpdateConfig: (newConfig: Partial<GameConfig>) => void;
+  onToggleHostSpectator?: (enabled: boolean) => void;
   onAddBot: (count: number) => void;
   onRemoveBot?: () => void;
   onStartGame: (
     customDeck?: Role[],
     discussionTimeSeconds?: number,
     modifiersConfig?: ModifiersConfig,
-    blockFirstNightElimination?: boolean
+    blockFirstNightElimination?: boolean,
+    hostIsSpectator?: boolean
   ) => void;
   onSwitchToLocalMode: () => void;
   onLeaveRoom?: () => void;
@@ -58,6 +61,7 @@ export const LobbyView: React.FC<Props> = ({
   isHost,
   config,
   onUpdateConfig,
+  onToggleHostSpectator,
   onAddBot,
   onRemoveBot,
   onStartGame,
@@ -78,6 +82,16 @@ export const LobbyView: React.FC<Props> = ({
   const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'corral' | 'roster'>('corral');
+
+  const isHostSpectator = Boolean(config.hostIsSpectator);
+  const playablePlayers = players.filter(p => !p.isSpectator && !(isHostSpectator && p.isHost));
+
+  const handleToggleSpectatorMode = () => {
+    sounds.playClick();
+    const nextVal = !isHostSpectator;
+    onUpdateConfig({ hostIsSpectator: nextVal });
+    onToggleHostSpectator?.(nextVal);
+  };
 
   const handleAddBotClick = async (count: number) => {
     if (isBotBusy) return;
@@ -101,7 +115,7 @@ export const LobbyView: React.FC<Props> = ({
 
   // Contadores de papéis selecionados
   const [roleCounts, setRoleCounts] = useState<Record<Role, number>>(() =>
-    generateRecommendedDeck(Math.max(5, players.length))
+    generateRecommendedDeck(Math.max(5, playablePlayers.length))
   );
 
   // Timer de debate da assembleia (padrão 120s)
@@ -135,12 +149,12 @@ export const LobbyView: React.FC<Props> = ({
     }
   }, [config.blockFirstNightElimination]);
 
-  // Atualizar baralho recomendado quando novos jogadores entram se o modal de config não estiver aberto
+  // Atualizar baralho recomendado quando novos jogadores entram ou quando o modo Telão muda
   useEffect(() => {
-    if (players.length >= 5 && !showConfigModal) {
-      setRoleCounts(generateRecommendedDeck(players.length));
+    if (playablePlayers.length >= 5 && !showConfigModal) {
+      setRoleCounts(generateRecommendedDeck(playablePlayers.length));
     }
-  }, [players.length, showConfigModal]);
+  }, [playablePlayers.length, showConfigModal]);
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(roomCode);
@@ -149,7 +163,7 @@ export const LobbyView: React.FC<Props> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const totalPlayers = players.length;
+  const totalPlayers = playablePlayers.length;
   const totalAllocated = Object.values(roleCounts).reduce((a, b) => a + b, 0);
   const remainingSlots = totalPlayers - totalAllocated;
   const maxAllowedSoldiers = getMaxAllowedSoldiers(totalPlayers);
@@ -195,27 +209,38 @@ export const LobbyView: React.FC<Props> = ({
   };
 
   const handleStart = () => {
-    if (players.length < 5) return;
+    if (totalPlayers < 5) return;
+    let deckToUse = buildDeck();
     if (totalAllocated !== totalPlayers) {
-      setConfigError(`O total de cartas selecionadas (${totalAllocated}) deve ser exatamente igual ao número de jogadores reunidos (${totalPlayers}).`);
-      setShowConfigModal(true);
-      return;
+      const rec = generateRecommendedDeck(totalPlayers);
+      setRoleCounts(rec);
+      const autoDeck: Role[] = [];
+      (Object.entries(rec) as [Role, number][]).forEach(([role, count]) => {
+        for (let i = 0; i < count; i++) autoDeck.push(role);
+      });
+      deckToUse = autoDeck;
     }
     sounds.playMorningBell();
-    onStartGame(buildDeck(), discussionSeconds, modifiersConfig, blockFirstNightElimination);
+    onStartGame(deckToUse, discussionSeconds, modifiersConfig, blockFirstNightElimination, isHostSpectator);
   };
 
   const handleConfirmAndStart = () => {
+    if (totalPlayers < 5) {
+      setConfigError(
+        `São necessários pelo menos 5 jogadores ativos na partida (atualmente há ${totalPlayers}${isHostSpectator ? ', pois o Host está em Modo Telão' : ''}).`
+      );
+      return;
+    }
     if (totalAllocated !== totalPlayers) {
       setConfigError(
-        `O total de cartas selecionadas (${totalAllocated}) deve ser exatamente igual ao número de jogadores reunidos (${totalPlayers}).`
+        `O total de cartas selecionadas (${totalAllocated}) deve ser exatamente igual ao número de jogadores ativos na partida (${totalPlayers}).`
       );
       return;
     }
     setConfigError(null);
     sounds.playMorningBell();
     setShowConfigModal(false);
-    onStartGame(buildDeck(), discussionSeconds, modifiersConfig, blockFirstNightElimination);
+    onStartGame(buildDeck(), discussionSeconds, modifiersConfig, blockFirstNightElimination, isHostSpectator);
   };
 
   const savedLocalAvatar = (() => {
@@ -389,7 +414,7 @@ export const LobbyView: React.FC<Props> = ({
               }`}
             >
               <Users size={14} />
-              <span>Membros ({players.length}/16)</span>
+              <span>Membros ({playablePlayers.length}/16)</span>
             </button>
           </div>
         </div>
@@ -397,12 +422,17 @@ export const LobbyView: React.FC<Props> = ({
         {/* O CERCADO DAS OVELHAS (Sempre visível no Desktop, ou quando aba corral está ativa no mobile) */}
         <div className={`${activeTab === 'corral' ? 'block' : 'hidden'} lg:block flex-1 min-h-0 flex flex-col justify-center space-y-2 animate-fadeIn`}>
           <SheepCorralWaiting
-            currentPlayer={activePlayer}
-            allPlayers={players.length > 0 ? players : [activePlayer]}
-            title="Aprisco da Vila"
-            subtitle="Clique no pasto para caminhar e aperte 'MEH'!"
-            waitingCountText={`${players.length}/16 ovelhas`}
+            currentPlayer={isHost && isHostSpectator ? undefined : activePlayer}
+            allPlayers={playablePlayers.length > 0 ? playablePlayers : (isHost && isHostSpectator ? [] : [activePlayer])}
+            title={isHost && isHostSpectator ? "Aprisco Global (Modo Telão)" : "Aprisco da Vila"}
+            subtitle={
+              isHost && isHostSpectator
+                ? "Você está como Telão Global (Não Joga). Acompanhe as ovelhas dos jogadores ao vivo!"
+                : "Clique no pasto para caminhar e aperte 'MEH'!"
+            }
+            waitingCountText={`${playablePlayers.length}/16 ovelhas`}
             isNight={false}
+            isSpectatorView={isHost && isHostSpectator}
             onSendSheepEvent={onSendSheepEvent}
             incomingSheepEvent={incomingSheepEvent}
             syncedSheepMap={syncedSheepMap}
@@ -526,13 +556,19 @@ export const LobbyView: React.FC<Props> = ({
           <div className="flex justify-between items-center px-1">
             <span className="text-xs font-mono font-bold uppercase tracking-wider text-black flex items-center gap-1.5">
               <Users size={14} />
-              <span>Membros Reunidos ({players.length}/16)</span>
+              <span>Jogadores Ativos ({playablePlayers.length}/16)</span>
             </span>
+            {isHostSpectator && (
+              <span className="text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-600 flex items-center gap-1">
+                <Tv size={10} /> Host no Telão
+              </span>
+            )}
           </div>
 
-          <div className="grid grid-cols-2 gap-1.5 max-h-44 lg:max-h-48 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50 flex-1">
+          <div className="grid grid-cols-2 gap-1.5 max-h-40 lg:max-h-44 overflow-y-auto p-1.5 border-2 border-black rounded-2xl bg-neutral-50 flex-1">
             {players.map(p => {
               const isMe = p.id === activePlayer.id;
+              const isSpecHost = Boolean(p.isSpectator || (isHostSpectator && p.isHost));
 
               return (
                 <motion.div
@@ -542,8 +578,12 @@ export const LobbyView: React.FC<Props> = ({
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.94, y: -8 }}
                   transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-                  className={`p-1.5 bg-white border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all h-fit ${
-                    isMe ? 'border-2 border-black' : 'border-neutral-300'
+                  className={`p-1.5 border rounded-xl flex items-center justify-between font-mono text-xs shadow-2xs transition-all h-fit ${
+                    isSpecHost
+                      ? 'bg-emerald-50/80 border-2 border-emerald-700'
+                      : isMe
+                      ? 'bg-white border-2 border-black'
+                      : 'bg-white border-neutral-300'
                   }`}
                 >
                   <div className="flex items-center gap-1.5 truncate min-w-0">
@@ -557,15 +597,21 @@ export const LobbyView: React.FC<Props> = ({
                     <span className="font-bold truncate text-[11px]">{p.name}</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    {isMe && (
+                    {isMe && !isSpecHost && (
                       <span className="text-[8px] bg-amber-500 text-black px-1 rounded font-mono font-black">
                         Você
                       </span>
                     )}
-                    {p.isHost && (
-                      <span className="text-[8px] bg-black text-white px-1 py-0.2 rounded font-mono font-bold">
-                        Host
+                    {isSpecHost ? (
+                      <span className="text-[8px] bg-emerald-700 text-white px-1.5 py-0.2 rounded font-mono font-black flex items-center gap-0.5">
+                        📺 Telão
                       </span>
+                    ) : (
+                      p.isHost && (
+                        <span className="text-[8px] bg-black text-white px-1 py-0.2 rounded font-mono font-bold">
+                          Host
+                        </span>
+                      )
                     )}
                     {p.isBot && (
                       <span className="text-[8px] bg-neutral-200 text-black px-1 rounded font-mono">
@@ -589,18 +635,75 @@ export const LobbyView: React.FC<Props> = ({
 
         {/* Host Controls & Action Buttons */}
         <div className="space-y-1.5 pt-0.5 shrink-0">
+          {/* Toggle de Modo Telão Global (Apenas Visualização para o Host) */}
+          {isHost && (
+            <div
+              onClick={handleToggleSpectatorMode}
+              className={`p-2 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between gap-2 font-mono ${
+                isHostSpectator
+                  ? 'bg-emerald-950 text-white border-emerald-500 shadow-md'
+                  : 'bg-neutral-50 text-black border-black hover:bg-neutral-100'
+              }`}
+              title="Quando ativado, o Host não recebe papel nem joga: a tela vira um Telão Global com notícias e o cercado ao vivo"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <div
+                  className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 border ${
+                    isHostSpectator
+                      ? 'bg-emerald-500 text-black border-emerald-300'
+                      : 'bg-black text-white border-black'
+                  }`}
+                >
+                  <Tv size={14} />
+                </div>
+                <div className="min-w-0 text-left">
+                  <div className="text-[10px] font-black uppercase leading-tight flex items-center gap-1.5">
+                    <span>Modo Telão Global (Host Não Joga)</span>
+                  </div>
+                  <p
+                    className={`text-[9px] truncate leading-tight ${
+                      isHostSpectator ? 'text-emerald-200' : 'text-neutral-600'
+                    }`}
+                  >
+                    {isHostSpectator
+                      ? 'Ativo: Sua tela mostrará só notícias e o cercado'
+                      : 'Toque p/ virar tela global apenas de visualização'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isHostSpectator}
+                className={`relative inline-flex h-5 w-10 shrink-0 items-center rounded-full border-2 transition-colors ${
+                  isHostSpectator
+                    ? 'bg-emerald-400 border-white'
+                    : 'bg-neutral-300 border-black'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full transition-transform ${
+                    isHostSpectator
+                      ? 'translate-x-4 bg-black'
+                      : 'translate-x-0.5 bg-white border border-black'
+                  }`}
+                />
+              </button>
+            </div>
+          )}
+
           {isHost && (
             <div className="flex gap-1.5 flex-wrap">
               <button
                 onClick={() => handleAddBotClick(1)}
-                disabled={isBotBusy || players.length >= 16}
+                disabled={isBotBusy || playablePlayers.length >= 16}
                 className="flex-1 min-w-[65px] py-1.5 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 <Bot size={12} /> +1 Bot
               </button>
               <button
                 onClick={() => handleAddBotClick(3)}
-                disabled={isBotBusy || players.length >= 14}
+                disabled={isBotBusy || playablePlayers.length >= 14}
                 className="flex-1 min-w-[65px] py-1.5 px-2 border-2 border-black rounded-xl text-[10px] font-mono font-bold uppercase flex items-center justify-center gap-1 hover:bg-neutral-100 disabled:opacity-40 transition-colors cursor-pointer"
               >
                 <UserPlus size={12} /> +3 Bots
@@ -630,18 +733,20 @@ export const LobbyView: React.FC<Props> = ({
           {isHost ? (
             <button
               onClick={handleStart}
-              disabled={players.length < 5}
+              disabled={playablePlayers.length < 5}
               className={`w-full py-2.5 lg:py-3 rounded-full flex items-center justify-center space-x-2 text-xs font-mono font-black uppercase tracking-widest transition-transform cursor-pointer ${
-                players.length >= 5
+                playablePlayers.length >= 5
                   ? 'bg-black text-white active:scale-95 shadow-md hover:bg-neutral-800'
                   : 'bg-neutral-300 text-neutral-500 cursor-not-allowed'
               }`}
             >
               <FourPointStar size={14} />
               <span>
-                {players.length >= 5
-                  ? 'INICIAR PARTIDA ONLINE'
-                  : `ADICIONE MAIS ${5 - players.length} JOGADORES/BOTS`}
+                {playablePlayers.length >= 5
+                  ? isHostSpectator
+                    ? 'INICIAR PARTIDA (HOST NO TELÃO)'
+                    : 'INICIAR PARTIDA ONLINE'
+                  : `ADICIONE MAIS ${5 - playablePlayers.length} JOGADORES/BOTS`}
               </span>
               <FourPointStar size={14} />
             </button>
@@ -962,6 +1067,39 @@ export const LobbyView: React.FC<Props> = ({
                   <ShieldCheck size={14} />
                   <span>Regras Adicionais da Partida</span>
                 </span>
+
+                {/* Toggle: Modo Telão Global (Host Não Joga) */}
+                <div
+                  onClick={handleToggleSpectatorMode}
+                  className={`flex items-center justify-between gap-3 p-2.5 rounded-xl border-2 cursor-pointer transition-all ${
+                    isHostSpectator
+                      ? 'bg-emerald-50 border-emerald-600'
+                      : 'bg-white border-neutral-300 hover:border-black'
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-black uppercase text-black flex items-center gap-1.5">
+                      <span>📺 Modo Telão Global (Host Não Joga)</span>
+                    </div>
+                    <div className="text-[10px] text-neutral-600 leading-tight mt-0.5">
+                      Transforma a tela do Host em uma visão global apenas com notícias, atualizações e o cercado ao vivo. O Host deixa de ser jogador.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isHostSpectator}
+                    className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 border-black transition-colors ${
+                      isHostSpectator ? 'bg-emerald-600' : 'bg-neutral-300'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white border border-black transition-transform ${
+                        isHostSpectator ? 'translate-x-5' : 'translate-x-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
 
                 {/* Toggle: Bloquear Eliminação na 1ª Noite */}
                 <div

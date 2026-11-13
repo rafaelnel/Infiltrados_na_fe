@@ -3,6 +3,7 @@ import { Player, Role } from '../types/game';
 import { sounds } from '../utils/audio';
 import { FourPointStar } from './RoleIllustrations';
 import { PersonAvatar } from './PersonAvatar';
+import { ScreenTutorialTip } from './ScreenTutorialTip';
 import { Scale, CheckCircle2, UserX, AlertTriangle, Crown } from 'lucide-react';
 
 interface Props {
@@ -10,6 +11,7 @@ interface Props {
   players: Player[];
   onCastVote: (targetId: string | 'ABSTAIN', useDoubleVote?: boolean) => void;
   onAdvanceVoting?: () => void;
+  onOpenTutorial?: () => void;
   isHost?: boolean;
   isSecretBallot?: boolean;
   hideAvatars?: boolean;
@@ -20,6 +22,7 @@ export const VotingPanel: React.FC<Props> = ({
   players,
   onCastVote,
   onAdvanceVoting,
+  onOpenTutorial,
   isHost,
   isSecretBallot = false,
   hideAvatars = false,
@@ -70,6 +73,14 @@ export const VotingPanel: React.FC<Props> = ({
     <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-6 lg:items-center justify-between p-2 sm:p-3 space-y-2 lg:space-y-0 animate-fadeIn min-h-0">
       {/* Coluna Esquerda no Desktop: Cabeçalho + Habilidade do Mestre */}
       <div className="lg:col-span-5 flex flex-col justify-center space-y-3">
+        {/* Dica de Tutorial para a Votação */}
+        <ScreenTutorialTip
+          screenName="VOTING"
+          title="Votação da Vila"
+          tip="Debata com os outros irmãos e toque no suspeito para julgar. Você também pode votar em 'Abster-se'. O mais votado da rodada será eliminado."
+          onOpenFullTutorial={onOpenTutorial}
+        />
+
         {/* Header */}
         <div className="text-center lg:text-left space-y-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-black text-white rounded-full text-[10px] font-mono uppercase tracking-widest">

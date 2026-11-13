@@ -175,6 +175,7 @@ export interface Player {
   hasConfirmedRole?: boolean;
   hasApprovedPhase?: boolean;
   disconnected?: boolean;
+  isSpectator?: boolean;
 
   // Regras de Funções
   lastProtectedTargetId?: string | null; // Pastor: não pode repetir 2 noites seguidas
@@ -213,6 +214,7 @@ export interface GameConfig {
   revealRolesOnDeath: boolean;
   pastorCanSelfProtect: boolean;
   blockFirstNightElimination?: boolean;
+  hostIsSpectator?: boolean;
   discussionTimeSeconds: number;
   votingTimeSeconds: number;
   nightTimeSeconds: number;

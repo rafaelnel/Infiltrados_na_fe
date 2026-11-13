@@ -3,6 +3,7 @@ import { Player, Role, Team, MODIFIERS_METADATA } from '../types/game';
 import { RoleIllustration, FourPointStar } from './RoleIllustrations';
 import { PersonAvatar } from './PersonAvatar';
 import { sounds } from '../utils/audio';
+import { ScreenTutorialTip } from './ScreenTutorialTip';
 import {
   Shield,
   Sparkles,
@@ -33,6 +34,7 @@ interface Props {
   ) => void;
   onExecuteSpy?: (targetId: string) => Promise<{ role: string; team: string; name: string }>;
   onAdvanceNight?: () => void;
+  onOpenTutorial?: () => void;
   isHost?: boolean;
   waitingCorralNode?: React.ReactNode;
 }
@@ -47,6 +49,7 @@ export const NightActionPanel: React.FC<Props> = ({
   onPerformAction,
   onExecuteSpy,
   onAdvanceNight,
+  onOpenTutorial,
   isHost,
   waitingCorralNode,
 }) => {
@@ -306,6 +309,14 @@ export const NightActionPanel: React.FC<Props> = ({
     <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-6 lg:items-center justify-between p-2.5 sm:p-4 space-y-2.5 lg:space-y-0 animate-fadeIn select-none bg-[#0B132B] text-white rounded-2xl min-h-0">
       {/* COLUNA ESQUERDA NO DESKTOP: Cabeçalho + Ilustração + Modificador Especial */}
       <div className="lg:col-span-5 flex flex-col justify-between space-y-2.5">
+        {/* Dica de Tutorial para a Noite */}
+        <ScreenTutorialTip
+          screenName="NIGHT"
+          title="Fase Noturna Secreta"
+          tip="Sua ação nesta fase é completamente anônima. Selecione o irmão alvo e clique no botão de confirmar para travar sua decisão antes do amanhecer."
+          onOpenFullTutorial={onOpenTutorial}
+        />
+
         {/* Header Info - MODO ESCURO COM FUNDO AZUL ESCURO E LETRAS BRANCAS */}
         <div className="text-center lg:text-left space-y-1">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1C2541] border border-indigo-400/40 text-indigo-200 rounded-full text-[10px] font-mono uppercase tracking-widest">

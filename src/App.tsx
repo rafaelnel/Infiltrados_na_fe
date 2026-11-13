@@ -17,6 +17,7 @@ import { SystemDocumentationModal } from './components/SystemDocumentationModal'
 import { LocalPlayersSetupModal, LocalPlayerProfilesMap } from './components/LocalPlayersSetupModal';
 import { GameSettingsModal } from './components/GameSettingsModal';
 import { BallotBoxReveal } from './components/BallotBoxReveal';
+import { HostSpectatorView } from './components/HostSpectatorView';
 import { AtmosphericTransition, AtmosphericTransitionType } from './components/AtmosphericTransition';
 import { FourPointStar, SheepIllustration, RoleIllustration } from './components/RoleIllustrations';
 import { SheepCorralWaiting, SheepEventData, SyncedSheepData } from './components/SheepCorralWaiting';
@@ -66,6 +67,7 @@ import {
   LogOut,
   X,
   Check,
+  Tv,
 } from 'lucide-react';
 
 export default function App() {
@@ -115,6 +117,8 @@ export default function App() {
   const [modalName, setModalName] = useState('');
   const [modalCode, setModalCode] = useState('');
   const [modalError, setModalError] = useState<string | null>(null);
+  const [createAsSpectatorHost, setCreateAsSpectatorHost] = useState(false);
+  const hostSpectatorOverrideRef = useRef<Record<string, boolean>>({});
   const [isEntryAvatarModalOpen, setIsEntryAvatarModalOpen] = useState(false);
   const [myCustomAvatar, setMyCustomAvatar] = useState<string | undefined>(() => {
     try {
@@ -733,21 +737,39 @@ export default function App() {
       setErrorMessage(null);
       setModalError(null);
       if (socketRef.current && socketRef.current.connected) {
-        socketRef.current.emit('create-room', { hostName: host, color: savedColor, avatar: savedAvatar }, (res: any) => {
-          if (res?.success) {
-            myPlayerIdRef.current = res.playerId;
-            setMyPlayerId(res.playerId);
-            setRoomData(prev => mergeRoomUpdate(prev, res.room, res.playerId));
-            setMode('ONLINE');
-            setRevealedResultDay(null);
-            setIsCreateRoomModalOpen(false);
-            sounds.playClick();
-            saveOnlineSession(res.room.code, res.playerId, host);
-            broadcastMyProfileToRoom(res.room.code, res.playerId, savedAvatar, savedColor);
-          } else {
-            fallbackRestCreate(host);
+        socketRef.current.emit(
+          'create-room',
+          { hostName: host, color: savedColor, avatar: savedAvatar, hostIsSpectator: createAsSpectatorHost },
+          (res: any) => {
+            if (res?.success) {
+              if (res.room?.code) {
+                hostSpectatorOverrideRef.current[res.room.code] = createAsSpectatorHost;
+              }
+              myPlayerIdRef.current = res.playerId;
+              setMyPlayerId(res.playerId);
+              setRoomData(prev => mergeRoomUpdate(prev, res.room, res.playerId));
+              setMode('ONLINE');
+              setRevealedResultDay(null);
+              setIsCreateRoomModalOpen(false);
+              sounds.playClick();
+              saveOnlineSession(res.room.code, res.playerId, host);
+              broadcastMyProfileToRoom(res.room.code, res.playerId, savedAvatar, savedColor);
+              if (createAsSpectatorHost && res.room?.code) {
+                apiFetch(`/api/rooms/${res.room.code}/chat`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    playerId: res.playerId,
+                    text: '__HOST_SPEC__:1',
+                    channel: 'PUBLIC',
+                  }),
+                }).catch(() => {});
+              }
+            } else {
+              fallbackRestCreate(host);
+            }
           }
-        });
+        );
       } else {
         await fallbackRestCreate(host);
       }
@@ -766,9 +788,17 @@ export default function App() {
     const data = await apiFetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hostName: host, color: savedColor, avatar: savedAvatar }),
+      body: JSON.stringify({
+        hostName: host,
+        color: savedColor,
+        avatar: savedAvatar,
+        hostIsSpectator: createAsSpectatorHost,
+      }),
     });
 
+    if (data.roomCode) {
+      hostSpectatorOverrideRef.current[data.roomCode] = createAsSpectatorHost;
+    }
     myPlayerIdRef.current = data.playerId;
     setMyPlayerId(data.playerId);
     setRoomData(prev => mergeRoomUpdate(prev, data.room, data.playerId));
@@ -779,6 +809,17 @@ export default function App() {
     saveOnlineSession(data.roomCode, data.playerId, host);
     setupSSE(data.roomCode, data.playerId);
     broadcastMyProfileToRoom(data.roomCode, data.playerId, savedAvatar, savedColor);
+    if (createAsSpectatorHost && data.roomCode) {
+      apiFetch(`/api/rooms/${data.roomCode}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: data.playerId,
+          text: '__HOST_SPEC__:1',
+          channel: 'PUBLIC',
+        }),
+      }).catch(() => {});
+    }
   };
 
   const handleJoinRoom = async (chosenCode?: string, chosenName?: string, explicitPlayerId?: string) => {
@@ -917,12 +958,17 @@ export default function App() {
       if (!mySavedColor) mySavedColor = localStorage.getItem('custom_avatar_color') || '#F59E0B';
     } catch {}
 
-    // Extrai eventos em tempo real de movimento/balido das ovelhas (__SHEEP__:) e perfis (__PROF__:)
+    // Extrai eventos em tempo real de movimento/balido das ovelhas (__SHEEP__:), perfis (__PROF__:) e modo telão (__HOST_SPEC__:)
     const rawMessages = updatedRoom.messages || [];
     let sheepChanged = false;
+    let hostSpecFromMsg: boolean | undefined = undefined;
     for (const msg of rawMessages) {
       if (!msg?.text || !msg.senderId) continue;
-      if (msg.text.startsWith('__PROF__:')) {
+      if (msg.text.startsWith('__HOST_SPEC__:')) {
+        if (!updatedRoom.hostId || msg.senderId === updatedRoom.hostId) {
+          hostSpecFromMsg = msg.text.trim() === '__HOST_SPEC__:1';
+        }
+      } else if (msg.text.startsWith('__PROF__:')) {
         try {
           const payload = JSON.parse(msg.text.slice('__PROF__:'.length));
           if (payload && (payload.c || payload.a)) {
@@ -954,6 +1000,22 @@ export default function App() {
       }
     }
 
+    if (typeof hostSpecFromMsg === 'boolean' && updatedRoom.code) {
+      hostSpectatorOverrideRef.current[updatedRoom.code] = hostSpecFromMsg;
+    } else if (typeof updatedRoom.config?.hostIsSpectator === 'boolean' && updatedRoom.code) {
+      hostSpectatorOverrideRef.current[updatedRoom.code] = updatedRoom.config.hostIsSpectator;
+    }
+
+    const resolvedHostIsSpectator = Boolean(
+      typeof updatedRoom.config?.hostIsSpectator === 'boolean'
+        ? updatedRoom.config.hostIsSpectator
+        : typeof hostSpecFromMsg === 'boolean'
+        ? hostSpecFromMsg
+        : updatedRoom.code && typeof hostSpectatorOverrideRef.current[updatedRoom.code] === 'boolean'
+        ? hostSpectatorOverrideRef.current[updatedRoom.code]
+        : prev?.config?.hostIsSpectator
+    );
+
     if (sheepChanged) {
       const snapshot = { ...syncedSheepRef.current };
       setTimeout(() => {
@@ -967,6 +1029,7 @@ export default function App() {
         !msg.text.startsWith('__SHEEP__:') &&
         !msg.text.startsWith('__PROF__:') &&
         !msg.text.startsWith('__PROFILE__:') &&
+        !msg.text.startsWith('__HOST_SPEC__:') &&
         msg.text !== '__REQUEST_PROFILES__'
     );
 
@@ -977,6 +1040,9 @@ export default function App() {
     // (e ainda houver cores disponíveis na paleta), sorteia uma cor livre aleatória para ele.
     const enrichedPlayers = (updatedRoom.players || []).map(p => {
       const prevPlayer = prev?.players?.find(oldP => oldP.id === p.id);
+      const isPlayerSpectatorHost = Boolean(
+        p.isSpectator || (resolvedHostIsSpectator && (p.id === updatedRoom.hostId || p.isHost))
+      );
 
       if (pId && p.id === pId) {
         const resolved = pickRandomAvailableColor(mySavedColor, assignedColorsSoFar);
@@ -996,6 +1062,7 @@ export default function App() {
         assignedColorsSoFar.push(mySavedColor);
         return {
           ...p,
+          isSpectator: isPlayerSpectatorHost,
           avatar: mySavedAvatar || p.avatar || prevPlayer?.avatar,
           color: mySavedColor,
         };
@@ -1021,6 +1088,7 @@ export default function App() {
 
       return {
         ...p,
+        isSpectator: isPlayerSpectatorHost,
         avatar: peerAvatar,
         color: resolvedPeer.color,
       };
@@ -1028,6 +1096,10 @@ export default function App() {
 
     const enrichedRoom: RoomState = {
       ...updatedRoom,
+      config: {
+        ...updatedRoom.config,
+        hostIsSpectator: resolvedHostIsSpectator,
+      },
       players: enrichedPlayers,
       messages: visibleMessages,
     };
@@ -1138,15 +1210,63 @@ export default function App() {
     }
   }, [mode, roomData?.code, roomData?.phase, roomData?.self?.role, myPlayerId]);
 
+  const handleToggleHostSpectator = async (enabled: boolean) => {
+    if (!roomData || !myPlayerId) return;
+    const code = roomData.code;
+    hostSpectatorOverrideRef.current[code] = enabled;
+
+    setRoomData(prev => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        config: {
+          ...prev.config,
+          hostIsSpectator: enabled,
+        },
+        players: prev.players.map(p =>
+          p.id === prev.hostId || p.isHost ? { ...p, isSpectator: enabled } : p
+        ),
+      };
+    });
+
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('set-host-spectator', {
+        roomCode: code,
+        playerId: myPlayerId,
+        hostIsSpectator: enabled,
+      });
+    }
+
+    apiFetch(`/api/rooms/${code}/host-spectator`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerId: myPlayerId, hostIsSpectator: enabled }),
+    }).catch(() => {});
+
+    apiFetch(`/api/rooms/${code}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        playerId: myPlayerId,
+        text: `__HOST_SPEC__:${enabled ? '1' : '0'}`,
+        channel: 'PUBLIC',
+      }),
+    }).catch(() => {});
+  };
+
   const handleOnlineStartGame = async (
     customDeck?: Role[],
     discussionTimeSeconds?: number,
     modifiersConfig?: ModifiersConfig,
-    blockFirstNightElimination?: boolean
+    blockFirstNightElimination?: boolean,
+    hostIsSpectator?: boolean
   ) => {
     if (!roomData) return;
     try {
       const code = roomData.code;
+      const isSpec = typeof hostIsSpectator === 'boolean' ? hostIsSpectator : Boolean(roomData.config?.hostIsSpectator);
+      hostSpectatorOverrideRef.current[code] = isSpec;
+
       const payload = {
         roomCode: code,
         playerId: myPlayerId,
@@ -1154,6 +1274,7 @@ export default function App() {
         discussionTimeSeconds,
         modifiersConfig,
         blockFirstNightElimination,
+        hostIsSpectator: isSpec,
       };
       const data = await apiFetch(`/api/rooms/${code}/start`, {
         method: 'POST',
@@ -1294,6 +1415,43 @@ export default function App() {
       console.error('Erro na ação noturna:', e);
     }
   };
+
+  // Auto-pass para o Host quando está em Modo Telão Global (caso conectado a servidor legado onde o Host ainda consta na lista)
+  useEffect(() => {
+    if (mode !== 'ONLINE' || !roomData || !myPlayerId) return;
+    const isHost = roomData.hostId === myPlayerId;
+    const isHostSpectator = Boolean(roomData.config?.hostIsSpectator);
+    if (!isHost || !isHostSpectator || roomData.phase === 'LOBBY' || roomData.phase === 'GAME_OVER') return;
+
+    const hostEntry = roomData.self || roomData.players.find(p => p.id === myPlayerId);
+    if (!hostEntry) return;
+
+    if (roomData.phase === 'ROLE_REVEAL' && !hostEntry.hasConfirmedRole) {
+      handleOnlineConfirmRole();
+    } else if (roomData.phase === 'NIGHT' && hostEntry.isAlive && !hostEntry.hasActedTonight) {
+      handleOnlineNightAction('ABSTAIN');
+    } else if (
+      (roomData.phase === 'DAY_ANNOUNCEMENT' ||
+        roomData.phase === 'DAY_DISCUSSION' ||
+        roomData.phase === 'DAY_RESULT') &&
+      hostEntry.isAlive &&
+      !hostEntry.hasApprovedPhase
+    ) {
+      handleOnlineReadyPhase();
+    } else if (roomData.phase === 'DAY_VOTING' && hostEntry.isAlive && hostEntry.voteTargetId === null) {
+      handleOnlineVote('ABSTAIN');
+    }
+  }, [
+    mode,
+    roomData?.phase,
+    roomData?.dayNumber,
+    roomData?.config?.hostIsSpectator,
+    roomData?.self?.hasConfirmedRole,
+    roomData?.self?.hasActedTonight,
+    roomData?.self?.hasApprovedPhase,
+    roomData?.self?.voteTargetId,
+    myPlayerId,
+  ]);
 
   const handleOnlineExecuteSpy = async (targetId: string) => {
     if (!roomData) return { role: '', team: '', name: '' };
@@ -2544,6 +2702,7 @@ export default function App() {
                   : prev
               );
             }}
+            onToggleHostSpectator={handleToggleHostSpectator}
             onAddBot={handleOnlineAddBot}
             onRemoveBot={handleOnlineRemoveBot}
             onStartGame={handleOnlineStartGame}
@@ -2556,6 +2715,28 @@ export default function App() {
             selfPlayer={lobbyMe || undefined}
             onUpdateProfile={handleOnlineUpdateProfile}
             onSendSheepEvent={handleSendSheepEvent}
+            incomingSheepEvent={incomingSheepEvent}
+            syncedSheepMap={syncedSheepMap}
+          />
+        );
+      }
+
+      const isHostSpectator = Boolean(roomData.config?.hostIsSpectator);
+      const playablePlayers = roomData.players.filter(
+        p => !p.isSpectator && !(isHostSpectator && (p.id === roomData.hostId || p.isHost))
+      );
+
+      // Se o Host ativou o Modo Telão Global (apenas visualização, não jogável), renderiza o Telão Global em todas as fases da partida!
+      if (isHost && isHostSpectator) {
+        return (
+          <HostSpectatorView
+            roomData={roomData}
+            playablePlayers={playablePlayers}
+            onlineDiscussionSeconds={onlineDiscussionSeconds}
+            revealedResultDay={revealedResultDay}
+            onCompleteBallotReveal={(day) => setRevealedResultDay(day)}
+            onAdvancePhase={handleOnlineAdvancePhase}
+            onResetToLobby={handleOnlineReset}
             incomingSheepEvent={incomingSheepEvent}
             syncedSheepMap={syncedSheepMap}
           />
@@ -2597,8 +2778,8 @@ export default function App() {
       // 4.1 ROLE REVEAL (Conferir papel secreto individual no celular)
       if (roomData.phase === 'ROLE_REVEAL') {
         if (!me) return null;
-        const totalLiving = roomData.players.filter(p => p.isAlive).length;
-        const totalConfirmed = roomData.players.filter(p => p.isAlive && p.hasConfirmedRole).length;
+        const totalLiving = playablePlayers.filter(p => p.isAlive).length;
+        const totalConfirmed = playablePlayers.filter(p => p.isAlive && p.hasConfirmedRole).length;
         const hasMeConfirmed = Boolean(me.hasConfirmedRole);
 
         return (
@@ -2668,7 +2849,7 @@ export default function App() {
                   <div className="w-full lg:col-span-7">
                     <SheepCorralWaiting
                       currentPlayer={me}
-                      allPlayers={roomData.players.filter(p => p.isAlive)}
+                      allPlayers={playablePlayers.filter(p => p.isAlive)}
                       title="Cercado de Espera da Vila"
                       subtitle="Você virou uma ovelhinha no pasto! Ande e fale 'MEH' enquanto aguarda."
                       waitingCountText={`${totalConfirmed} de ${totalLiving} prontos`}
@@ -2734,7 +2915,7 @@ export default function App() {
               <div className="w-full lg:col-span-7">
                 <SheepCorralWaiting
                   currentPlayer={me}
-                  allPlayers={roomData.players}
+                  allPlayers={playablePlayers}
                   title="Aprisco Noturno dos Espíritos"
                   subtitle="Ande pelo pasto sob o luar e fale 'MEH'!"
                   waitingCountText="Aguardando amanhecer..."
@@ -2750,8 +2931,8 @@ export default function App() {
 
         // Se o jogador vivo já realizou sua ação noturna (está esperando os outros agirem)
         if (me.hasActedTonight) {
-          const totalLiving = roomData.players.filter(p => p.isAlive).length;
-          const totalActed = roomData.players.filter(p => p.isAlive && p.hasActedTonight).length;
+          const totalLiving = playablePlayers.filter(p => p.isAlive).length;
+          const totalActed = playablePlayers.filter(p => p.isAlive && p.hasActedTonight).length;
           return (
             <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-between p-3 sm:p-4 bg-[#0B132B] text-white rounded-2xl animate-fadeIn space-y-3 lg:space-y-0 min-h-0">
               <div className="w-full lg:col-span-5 flex flex-col justify-center space-y-3">
@@ -2772,7 +2953,7 @@ export default function App() {
                     <ChatPanel
                       messages={roomData.messages}
                       currentPlayer={me}
-                      players={roomData.players}
+                      players={playablePlayers}
                       onSendMessage={handleOnlineChat}
                     />
                   </div>
@@ -2791,7 +2972,7 @@ export default function App() {
               <div className="w-full lg:col-span-7">
                 <SheepCorralWaiting
                   currentPlayer={me}
-                  allPlayers={roomData.players}
+                  allPlayers={playablePlayers}
                   title="Aprisco Noturno da Vila"
                   subtitle="Ande pelo pasto sob o luar e fale 'MEH' enquanto os outros agem!"
                   waitingCountText={`${totalActed} de ${totalLiving} prontos`}
@@ -2810,7 +2991,7 @@ export default function App() {
             <div className={me.team === 'SOLDADOS' ? 'lg:col-span-8 flex flex-col min-h-0' : 'flex-1 flex flex-col min-h-0'}>
               <NightActionPanel
                 player={me}
-                allPlayers={roomData.players}
+                allPlayers={playablePlayers}
                 canSelfProtectPastor={roomData.config.pastorCanSelfProtect}
                 dayNumber={roomData.dayNumber}
                 blockFirstNightElimination={Boolean(roomData.config.blockFirstNightElimination)}
@@ -2822,7 +3003,7 @@ export default function App() {
                 waitingCorralNode={
                   <SheepCorralWaiting
                     currentPlayer={me}
-                    allPlayers={roomData.players.filter(p => p.isAlive)}
+                    allPlayers={playablePlayers.filter(p => p.isAlive)}
                     title="Aprisco Noturno da Vila"
                     subtitle="Ação noturna salva! Ande pelo pasto sob o luar e balbe 'MEH' enquanto os outros agem."
                     waitingCountText="Aguardando a congregação..."
@@ -2839,7 +3020,7 @@ export default function App() {
                 <ChatPanel
                   messages={roomData.messages}
                   currentPlayer={me}
-                  players={roomData.players}
+                  players={playablePlayers}
                   onSendMessage={handleOnlineChat}
                 />
               </div>
@@ -2851,8 +3032,8 @@ export default function App() {
       // 4.3 DAY ANNOUNCEMENT (Amanhecer)
       if (roomData.phase === 'DAY_ANNOUNCEMENT') {
         if (!me) return null;
-        const totalLiving = roomData.players.filter(p => p.isAlive).length;
-        const totalApproved = roomData.players.filter(p => p.isAlive && p.hasApprovedPhase).length;
+        const totalLiving = playablePlayers.filter(p => p.isAlive).length;
+        const totalApproved = playablePlayers.filter(p => p.isAlive && p.hasApprovedPhase).length;
         const hasMeApproved = Boolean(me.hasApprovedPhase);
         const showWaitingCorral = hasMeApproved || !me?.isAlive;
 
@@ -2884,7 +3065,7 @@ export default function App() {
               <div className="lg:col-span-6 animate-fadeIn my-1 lg:my-0">
                 <SheepCorralWaiting
                   currentPlayer={me}
-                  allPlayers={roomData.players}
+                  allPlayers={playablePlayers}
                   title={!me?.isAlive ? "Pasto dos Espíritos no Amanhecer" : "Pasto do Amanhecer"}
                   subtitle={
                     !me?.isAlive
@@ -2906,8 +3087,8 @@ export default function App() {
       // 4.4 DAY DISCUSSION (Assembleia)
       if (roomData.phase === 'DAY_DISCUSSION') {
         if (!me) return null;
-        const totalLiving = roomData.players.filter(p => p.isAlive).length;
-        const totalApproved = roomData.players.filter(p => p.isAlive && p.hasApprovedPhase).length;
+        const totalLiving = playablePlayers.filter(p => p.isAlive).length;
+        const totalApproved = playablePlayers.filter(p => p.isAlive && p.hasApprovedPhase).length;
         const hasMeApproved = Boolean(me.hasApprovedPhase);
 
         const minutes = Math.floor(onlineDiscussionSeconds / 60);
@@ -2957,7 +3138,7 @@ export default function App() {
                 <div className="w-full lg:col-span-7">
                   <SheepCorralWaiting
                     currentPlayer={me}
-                    allPlayers={roomData.players}
+                    allPlayers={playablePlayers}
                     title="Pasto dos Espíritos na Assembleia"
                     subtitle="Você está no plano espiritual! Ande pelo pasto e fale 'MEH' enquanto os vivos debatem!"
                     waitingCountText={`${totalApproved} de ${totalLiving} prontos`}
@@ -2974,7 +3155,7 @@ export default function App() {
                   <ChatPanel
                     messages={roomData.messages}
                     currentPlayer={me}
-                    players={roomData.players}
+                    players={playablePlayers}
                     onSendMessage={handleOnlineChat}
                   />
                 </div>
@@ -2983,7 +3164,7 @@ export default function App() {
                   <div className="lg:col-span-6 animate-fadeIn">
                     <SheepCorralWaiting
                       currentPlayer={me}
-                      allPlayers={roomData.players}
+                      allPlayers={playablePlayers}
                       title="Pasto da Assembleia"
                       subtitle="Você já confirmou estar pronto! Enquanto os outros concluem o debate, divirta-se no cercado!"
                       waitingCountText={`${totalApproved} de ${totalLiving} prontos`}
@@ -3101,8 +3282,8 @@ export default function App() {
       // 4.5 DAY VOTING (Tribunal)
       if (roomData.phase === 'DAY_VOTING') {
         if (!me) return null;
-        const totalLiving = roomData.players.filter(p => p.isAlive).length;
-        const totalVoted = roomData.players.filter(p => p.isAlive && p.voteTargetId !== null).length;
+        const totalLiving = playablePlayers.filter(p => p.isAlive).length;
+        const totalVoted = playablePlayers.filter(p => p.isAlive && p.voteTargetId !== null).length;
 
         if (!me.isAlive) {
           return (
@@ -3128,7 +3309,7 @@ export default function App() {
               <div className="w-full lg:col-span-7">
                 <SheepCorralWaiting
                   currentPlayer={me}
-                  allPlayers={roomData.players}
+                  allPlayers={playablePlayers}
                   title="Aprisco dos Espíritos no Julgamento"
                   subtitle="Ande pelo pasto e fale 'MEH' enquanto os vivos decidem o destino da vila!"
                   waitingCountText={`${totalVoted} de ${totalLiving} votos computados`}
@@ -3144,7 +3325,7 @@ export default function App() {
 
         // Se o jogador vivo já votou (está esperando os demais)
         if (me.voteTargetId !== null) {
-          const votedPlayer = roomData.players.find(p => p.id === me.voteTargetId);
+          const votedPlayer = playablePlayers.find(p => p.id === me.voteTargetId);
           const voteLabel = me.voteTargetId === 'ABSTAIN' ? 'Abstenção' : (votedPlayer?.name || 'Alvo Escolhido');
           return (
             <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 lg:gap-5 items-center justify-between p-3 sm:p-4 space-y-3 lg:space-y-0 animate-fadeIn min-h-0">
@@ -3186,7 +3367,7 @@ export default function App() {
               <div className="w-full lg:col-span-7">
                 <SheepCorralWaiting
                   currentPlayer={me}
-                  allPlayers={roomData.players}
+                  allPlayers={playablePlayers}
                   title="Pasto da Assembleia"
                   subtitle="Voto registrado! Enquanto os outros membros votam, ande e fale 'MEH'!"
                   waitingCountText={`${totalVoted} de ${totalLiving} votaram`}
@@ -3209,7 +3390,7 @@ export default function App() {
 
             <VotingPanel
               currentPlayer={me}
-              players={roomData.players}
+              players={playablePlayers}
               onCastVote={handleOnlineVote}
               onAdvanceVoting={isHost ? handleOnlineAdvancePhase : undefined}
               isHost={isHost}
@@ -3235,8 +3416,8 @@ export default function App() {
           );
         }
 
-        const totalLiving = roomData.players.filter(p => p.isAlive).length;
-        const totalApproved = roomData.players.filter(p => p.isAlive && p.hasApprovedPhase).length;
+        const totalLiving = playablePlayers.filter(p => p.isAlive).length;
+        const totalApproved = playablePlayers.filter(p => p.isAlive && p.hasApprovedPhase).length;
         const hasMeApproved = Boolean(me?.hasApprovedPhase);
         const showWaitingCorral = hasMeApproved || !me?.isAlive;
 
@@ -3289,7 +3470,7 @@ export default function App() {
               <div className="lg:col-span-7 animate-fadeIn my-1 lg:my-0">
                 <SheepCorralWaiting
                   currentPlayer={me}
-                  allPlayers={roomData.players}
+                  allPlayers={playablePlayers}
                   title={!me?.isAlive ? "Aprisco dos Espíritos ao Entardecer" : "Aprisco ao Entardecer"}
                   subtitle={
                     !me?.isAlive
@@ -3313,7 +3494,7 @@ export default function App() {
         return (
           <GameOverView
             winner={roomData.winner || 'OVELHAS'}
-            players={roomData.players}
+            players={playablePlayers}
             onRestart={isHost ? handleOnlineReset : () => setMode('ENTRY')}
             isHost={isHost}
           />
@@ -3553,6 +3734,61 @@ export default function App() {
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Opção de Criar Sala já em Modo Telão Global (Host Não Joga) */}
+            <div
+              onClick={() => {
+                sounds.playClick();
+                setCreateAsSpectatorHost(prev => !prev);
+              }}
+              className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between gap-2.5 ${
+                createAsSpectatorHost
+                  ? 'bg-emerald-950 text-white border-emerald-500 shadow-md'
+                  : 'bg-neutral-50 text-black border-black hover:bg-neutral-100'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                    createAsSpectatorHost
+                      ? 'bg-emerald-400 text-black border-white'
+                      : 'bg-black text-white border-black'
+                  }`}
+                >
+                  <Tv size={15} />
+                </div>
+                <div className="text-left min-w-0">
+                  <div className="text-[11px] font-black uppercase leading-tight">
+                    📺 Modo Telão Global (Host Não Joga)
+                  </div>
+                  <p
+                    className={`text-[9px] leading-tight mt-0.5 ${
+                      createAsSpectatorHost ? 'text-emerald-200' : 'text-neutral-600'
+                    }`}
+                  >
+                    Sua tela mostrará somente notícias, atualizações e o cercado ao vivo para todos verem.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={createAsSpectatorHost}
+                className={`relative inline-flex h-5 w-10 shrink-0 items-center rounded-full border-2 transition-colors ${
+                  createAsSpectatorHost
+                    ? 'bg-emerald-400 border-white'
+                    : 'bg-neutral-300 border-black'
+                }`}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full transition-transform ${
+                    createAsSpectatorHost
+                      ? 'translate-x-4 bg-black'
+                      : 'translate-x-0.5 bg-white border border-black'
+                  }`}
+                />
+              </button>
             </div>
 
             {modalError && (

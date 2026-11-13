@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Settings, RotateCcw, Home, X, AlertTriangle, ArrowLeft, Users, LogOut, Check, Sun, Moon } from 'lucide-react';
+import { Settings, RotateCcw, Home, X, AlertTriangle, ArrowLeft, ArrowRight, Users, LogOut, Check, Sun, Moon, GraduationCap } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   onReturnToLobby?: () => void;
   onReturnHome: () => void;
   onLeaveRoom?: () => void;
+  onOpenTutorial?: () => void;
   isOnline?: boolean;
   isHost?: boolean;
   theme?: 'light' | 'dark';
@@ -24,6 +25,7 @@ export const GameSettingsModal: React.FC<Props> = ({
   onReturnToLobby,
   onReturnHome,
   onLeaveRoom,
+  onOpenTutorial,
   isOnline = false,
   isHost = true,
   theme = 'light',
@@ -352,6 +354,33 @@ export const GameSettingsModal: React.FC<Props> = ({
                   />
                 </button>
               </div>
+            )}
+
+            {/* Botão de Tutorial Interativo */}
+            {onOpenTutorial && (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  onClose();
+                  onOpenTutorial();
+                }}
+                className="w-full p-3 border-2 border-amber-500 bg-amber-50/80 hover:bg-amber-100 rounded-xl flex items-center justify-between text-left cursor-pointer transition-colors shadow-2xs group"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-amber-400 text-black flex items-center justify-center border border-amber-600 shrink-0">
+                    <GraduationCap size={16} />
+                  </div>
+                  <div>
+                    <div className="text-xs font-black uppercase text-amber-950">
+                      Tutorial Interativo Passo a Passo
+                    </div>
+                    <div className="text-[10px] text-amber-800">
+                      Aprenda as 3 telas: Lobby, Noite e Votação
+                    </div>
+                  </div>
+                </div>
+                <ArrowRight size={14} className="text-amber-700 group-hover:translate-x-0.5 transition-transform" />
+              </button>
             )}
 
             {/* Se for host online */}
